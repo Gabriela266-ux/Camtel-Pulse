@@ -1,0 +1,21 @@
+{
+  "name": "camtel-pulse-backend",
+  "version": "1.0.0",
+  "description": "Backend service for Camtel Pulse",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.1",
+    "dotenv": "^16.4.1",
+    "express": "^4.19.2",
+    "helmet": "^8.0.1",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
