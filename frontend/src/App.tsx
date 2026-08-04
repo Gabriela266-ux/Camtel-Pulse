@@ -3,7 +3,7 @@ import './App.css';
 import SearchBar from './components/SearchBar';
 import DailyInputForm from './components/DailyInputForm';
 import DailyTable from './components/DailyTable';
-import { DailyEntry } from './types';
+import type { DailyEntry } from './types';
 
 const STOCK_SECURITE_CLIENT = (objectifMensuel: number) =>
   (objectifMensuel / 31) * 3;
