@@ -4,7 +4,7 @@ export interface User {
   id: number;
   nom_complet: string;
   email: string;
-  role: 'ADMIN' | 'CHEF_OPE' | 'OPERATIONNEL';
+  role: 'ADMIN' | 'MANAGER' | 'CHEF_OPE' | 'OPERATIONNEL';
 }
 
 interface AuthContextType {
