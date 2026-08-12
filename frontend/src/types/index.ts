@@ -33,6 +33,8 @@ export interface KPICardsData {
 export interface DashboardData {
   entite_id: number;
   nom_entite: string;
+  entite_type: 'CENTRE' | 'DA' | 'DSM' | 'POS';
+  breadcrumb: string;
   kpi: KPICardsData;
 }
 

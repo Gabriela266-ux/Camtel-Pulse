@@ -1,0 +1,10 @@
+{
+  "description": "Manage and track telecom business objectives with a modern dashboard, providing real-time KPIs, progress monitoring, and data export features for operational efficiency.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

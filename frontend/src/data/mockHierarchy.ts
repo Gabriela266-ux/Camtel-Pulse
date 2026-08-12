@@ -20,12 +20,24 @@ export const mockHierarchyData: CentreHierarchy = {
     },
     {
       id: 102,
-      nom: 'Master Color (Master SIM 2)',
+      nom: 'Masters colo (Master SIM 2)',
       dsm: [
         {
           id: 202,
           nom: 'DSM 2 - Bonanjo',
-          pos: [{ id: 303, nom: 'POS 108 Bonanjo Port' }],
+          pos: [
+            { id: 303, nom: 'POS 108 Bonanjo Port' },
+            { id: 304, nom: 'POS 109 Bonanjo Central' },
+            { id: 305, nom: 'POS 110 Bonanjo Molyko' },
+          ],
+        },
+        {
+          id: 203,
+          nom: 'DSM 3 - Goudronnage Partners',
+          pos: [
+            { id: 306, nom: 'Partner POS 1 - OBC' },
+            { id: 307, nom: 'Partner POS 2 - ICG' },
+          ],
         },
       ],
     },
@@ -35,6 +47,8 @@ export const mockHierarchyData: CentreHierarchy = {
 export const mockDashboardInitial: DashboardData = {
   entite_id: 301,
   nom_entite: 'POS 274 Akwa Boulevard',
+  entite_type: 'POS',
+  breadcrumb: 'Centre 1 CDPSM (Littoral) / Glotelho (Master SIM 1) / DSM 1 - Akwa / POS 274 Akwa Boulevard',
   kpi: {
     objectif_mensuel: 1550000,
     realise_cumule: 350000,
