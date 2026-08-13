@@ -1,47 +1,50 @@
-const { salesRecords } = require('../data/seedData');
+const db = require('../models');
 
 class CorrectionService {
-  async listByUser(userEmail) {
-    return salesRecords
-      .filter((record) => record.userEmail === userEmail)
-      .map((record) => ({
-        id: record.id,
-        id_pos: record.posId,
-        date: record.day,
-        vente_jour: record.realization || record.vente_jour || 0,
-        status: 'pending'
-      }));
+  async listByUser(utilisateurId) {
+    // À adapter selon votre structure - exemple avec VenteDsmAuPos
+    return await db.VenteDsmAuPos.findAll({
+      where: { utilisateur_id: utilisateurId }
+    });
   }
 
-  async create({ userEmail, id_pos, date, ancienne_valeur, nouvelle_valeur, motif }) {
-    if (!userEmail || !id_pos || !date || !motif) {
-      throw new Error('userEmail, id_pos, date et motif sont obligatoires');
+  async create({ utilisateur_id, pos_id, date_vente, ancienne_valeur, nouvelle_valeur, motif }) {
+    if (!utilisateur_id || !pos_id || !date_vente || !motif) {
+      throw new Error('utilisateur_id, pos_id, date_vente et motif sont obligatoires');
     }
 
-    const correction = {
-      id: `correction-${Date.now()}`,
-      userEmail,
-      id_pos,
-      date,
+    // Créer ou mettre à jour le VenteDsmAuPos avec le motif de correction
+    const vente = await db.VenteDsmAuPos.create({
+      pos_id,
+      utilisateur_id,
+      date_vente,
+      quantite_vendu: Number(nouvelle_valeur || 0),
+      montant: Number(nouvelle_valeur || 0)
+    });
+
+    return {
+      id: vente.id,
+      pos_id,
+      utilisateur_id,
+      date_vente,
       ancienne_valeur: Number(ancienne_valeur || 0),
       nouvelle_valeur: Number(nouvelle_valeur || 0),
       motif,
       status: 'pending',
       created_at: new Date().toISOString()
     };
-
-    return correction;
   }
 
-  async validate(correctionId, validatedBy) {
-    if (!correctionId || !validatedBy) {
-      throw new Error('correctionId et validatedBy sont obligatoires');
+  async validate(venteId, utilisateur_id) {
+    const vente = await db.VenteDsmAuPos.findByPk(venteId);
+    if (!vente) {
+      throw new Error('Vente introuvable');
     }
 
     return {
-      id: correctionId,
+      id: vente.id,
       status: 'approved',
-      validatedBy,
+      validatedBy: utilisateur_id,
       validated_at: new Date().toISOString()
     };
   }

@@ -17,24 +17,40 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      code: {
-        type: Sequelize.STRING(50),
-        allowNull: false,
-        unique: true
+      zone_id: {  // ✅ AJOUTER
+        type: Sequelize.STRING(36),
+        allowNull: true,
+        references: {
+          model: 'zone',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
       },
       nom: {
         type: Sequelize.STRING(150),
         allowNull: false
       },
-      objectif_mensuel: {
-        type: Sequelize.DECIMAL(15, 2),
-        allowNull: false,
-        defaultValue: 0
+      raison_sociale: {  // ✅ AJOUTER
+        type: Sequelize.STRING(150),
+        allowNull: true
       },
-      active: {
-        type: Sequelize.BOOLEAN,
+      adresse: {  // ✅ AJOUTER
+        type: Sequelize.STRING(255),
+        allowNull: true
+      },
+      contact: {  // ✅ AJOUTER
+        type: Sequelize.STRING(50),
+        allowNull: true
+      },
+      statut: {  // ✅ RENOMMER DE: active
+        type: Sequelize.STRING(50),
         allowNull: false,
-        defaultValue: true
+        defaultValue: 'actif'
+      },
+      date_adhesion: {  // ✅ AJOUTER
+        type: Sequelize.DATEONLY,
+        allowNull: true
       },
       created_at: {
         type: Sequelize.DATE,

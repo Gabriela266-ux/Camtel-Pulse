@@ -9,29 +9,37 @@ module.exports = (sequelize, DataTypes) => {
     dsm_id: {
       type: DataTypes.STRING(36),
       allowNull: false,
-      references: {
-        model: 'dsm',
-        key: 'id'
-      }
+      references: { model: 'dsm', key: 'id' }
     },
-    code: {
-      type: DataTypes.STRING(50),
-      allowNull: false,
-      unique: true
+    zone_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'zone', key: 'id' }
     },
     nom: {
       type: DataTypes.STRING(150),
       allowNull: false
     },
-    objectif_mensuel: {
-      type: DataTypes.DECIMAL(15, 2),
-      allowNull: false,
-      defaultValue: 0
+    raison_sociale: {
+      type: DataTypes.STRING(150),
+      allowNull: true
     },
-    active: {
-      type: DataTypes.BOOLEAN,
+    adresse: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    contact: {
+      type: DataTypes.STRING(50),
+      allowNull: true
+    },
+    statut: {
+      type: DataTypes.STRING(50),
       allowNull: false,
-      defaultValue: true
+      defaultValue: 'actif'
+    },
+    date_adhesion: {
+      type: DataTypes.DATEONLY,
+      allowNull: true
     }
   }, {
     tableName: 'pos',
@@ -41,7 +49,9 @@ module.exports = (sequelize, DataTypes) => {
 
   Pos.associate = function associate(models) {
     Pos.belongsTo(models.Dsm, { foreignKey: 'dsm_id', as: 'dsm' });
-    Pos.hasMany(models.Utilisateur, { foreignKey: 'pos_id', as: 'utilisateurs' });
+    Pos.belongsTo(models.Zone, { foreignKey: 'zone_id', as: 'zone' });
+    Pos.hasMany(models.VenteDsmAuPos, { foreignKey: 'pos_id', as: 'achats' });
+    Pos.hasMany(models.Stock, { foreignKey: 'pos_id', as: 'stocks' });
   };
 
   return Pos;

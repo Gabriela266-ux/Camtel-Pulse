@@ -1,10 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 const Sequelize = require('sequelize');
-const sequelize = require('../config/database');
+const env = process.env.NODE_ENV || 'development';
+const config = require('../config/database')[env];
+
+// Initialisation de l'instance Sequelize avec la config
+const sequelize = new Sequelize(
+  config.database,
+  config.username,
+  config.password,
+  config
+);
 
 const db = {};
-
 const basename = path.basename(__filename);
 const modelDir = __dirname;
 

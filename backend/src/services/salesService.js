@@ -1,36 +1,36 @@
-const { salesRecords } = require('../data/seedData');
+const db = require('../models');
 
 class SalesService {
   async getDashboardStats() {
-    const totalForecast = salesRecords.reduce((sum, record) => sum + Number(record.forecast || 0), 0);
-    const totalRealization = salesRecords.reduce((sum, record) => sum + Number(record.realization || 0), 0);
-    const totalFollowUp = salesRecords.reduce((sum, record) => sum + Number(record.followUp || 0), 0);
-
+    const ventes = await db.VenteDsmAuPos.findAll();
+    const totalMontant = ventes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
+    
     return {
-      totalForecast,
-      totalRealization,
-      totalFollowUp,
-      averageCoverage: totalRealization > 0 ? (totalFollowUp / totalRealization) * 100 : 0,
-      recordCount: salesRecords.length
+      totalMontant,
+      totalQuantite: ventes.reduce((sum, v) => sum + Number(v.quantite_vendu || 0), 0),
+      recordCount: ventes.length
     };
   }
 
   async listRecords() {
-    return salesRecords;
+    return await db.VenteDsmAuPos.findAll({
+      include: [
+        { model: db.Dsm, as: 'dsm' },
+        { model: db.Pos, as: 'pos' },
+        { model: db.Utilisateur, as: 'saisi_par' }
+      ]
+    });
   }
 
   async createRecord(payload) {
-    const record = {
-      id: `sale-${Date.now()}`,
-      posId: payload.posId,
-      day: payload.day,
-      forecast: Number(payload.forecast || 0),
-      realization: Number(payload.realization || 0),
-      followUp: Number(payload.followUp || 0)
-    };
-
-    salesRecords.push(record);
-    return record;
+    return await db.VenteDsmAuPos.create({
+      pos_id: payload.pos_id,
+      dsm_id: payload.dsm_id,
+      utilisateur_id: payload.utilisateur_id,
+      date_vente: payload.date_vente,
+      quantite_vendu: Number(payload.quantite_vendu || 0),
+      montant: Number(payload.montant || 0)
+    });
   }
 }
 

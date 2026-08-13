@@ -1,28 +1,28 @@
 module.exports = (sequelize, DataTypes) => {
-  const Centre = sequelize.define('Centre', {
+  const Role = sequelize.define('Role', {
     id: {
       type: DataTypes.STRING(36),
       primaryKey: true,
       allowNull: false,
       defaultValue: DataTypes.UUIDV4
     },
-    nom_centre: {
-      type: DataTypes.STRING(150),
-      allowNull: false
-    },
-    region: {
+    libelle: {
       type: DataTypes.STRING(100),
       allowNull: false
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
-    tableName: 'centre',
+    tableName: 'role',
     underscored: true,
     timestamps: true
   });
 
-  Centre.associate = function associate(models) {
-    Centre.hasMany(models.Da, { foreignKey: 'centre_id', as: 'das' });
+  Role.associate = function associate(models) {
+    Role.hasMany(models.Utilisateur, { foreignKey: 'role_id', as: 'utilisateurs' });
   };
 
-  return Centre;
+  return Role;
 };

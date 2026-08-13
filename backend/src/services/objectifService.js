@@ -1,55 +1,57 @@
-const { clients, dsms, pos } = require('../data/seedData');
+const db = require('../models');
 
 class ObjectifService {
-  listByType(type, parentId = null) {
-    if (type === 'client') {
-      return parentId ? clients.filter((item) => item.centerId === parentId) : clients;
+  async listByType(type, parentId = null) {
+    if (type === 'centre') {
+      return await db.Centre.findAll();
+    }
+
+    if (type === 'da') {
+      return parentId 
+        ? await db.Da.findAll({ where: { centre_id: parentId } })
+        : await db.Da.findAll();
     }
 
     if (type === 'dsm') {
-      return parentId ? dsms.filter((item) => item.clientId === parentId) : dsms;
+      return parentId 
+        ? await db.Dsm.findAll({ where: { da_id: parentId } })
+        : await db.Dsm.findAll();
     }
 
     if (type === 'pos') {
-      return parentId ? pos.filter((item) => item.dsmId === parentId) : pos;
+      return parentId 
+        ? await db.Pos.findAll({ where: { dsm_id: parentId } })
+        : await db.Pos.findAll();
     }
 
     return [];
   }
 
-  update(type, id, payload) {
-    const items = this.listByType(type);
-    const index = items.findIndex((item) => item.id === id);
+  async update(type, id, payload) {
+    let model;
+    let whereClause = { id };
 
-    if (index === -1) {
+    if (type === 'centre') {
+      model = db.Centre;
+    } else if (type === 'da') {
+      model = db.Da;
+    } else if (type === 'dsm') {
+      model = db.Dsm;
+    } else if (type === 'pos') {
+      model = db.Pos;
+    } else {
+      throw new Error('Type introuvable');
+    }
+
+    const item = await model.findByPk(id);
+    if (!item) {
       throw new Error('Objectif introuvable');
     }
 
-    const item = items[index];
-    const updated = {
-      ...item,
+    return await item.update({
       ...payload,
-      monthlyGoal: Number(payload.monthlyGoal ?? item.monthlyGoal ?? 0)
-    };
-
-    items[index] = updated;
-
-    if (type === 'client') {
-      const target = clients.findIndex((client) => client.id === id);
-      if (target !== -1) { clients[target] = updated; }
-    }
-
-    if (type === 'dsm') {
-      const target = dsms.findIndex((dsm) => dsm.id === id);
-      if (target !== -1) { dsms[target] = updated; }
-    }
-
-    if (type === 'pos') {
-      const target = pos.findIndex((point) => point.id === id);
-      if (target !== -1) { pos[target] = updated; }
-    }
-
-    return updated;
+      objectif_mensuel: Number(payload.objectif_mensuel ?? item.objectif_mensuel ?? 0)
+    });
   }
 }
 

@@ -1,53 +1,61 @@
 const express = require('express');
 const { authenticate } = require('../middlewares/authMiddleware');
-const { salesRecords, pos } = require('../data/seedData');
+const db = require('../models');
 
 const router = express.Router();
 
 router.use(authenticate);
 
-router.get('/dashboard', (req, res) => {
-  const totalForecast = salesRecords.reduce((sum, record) => sum + Number(record.forecast || 0), 0);
-  const totalRealization = salesRecords.reduce((sum, record) => sum + Number(record.realization || 0), 0);
-  const totalFollowUp = salesRecords.reduce((sum, record) => sum + Number(record.followUp || 0), 0);
-
-  res.json({
-    ok: true,
-    data: {
-      totalForecast,
-      totalRealization,
-      totalFollowUp,
-      averageCoverage: totalRealization > 0 ? (totalFollowUp / totalRealization) * 100 : 0,
-      posCount: pos.length,
-      recordsCount: salesRecords.length,
-      currentRole: req.user.role
-    }
-  });
-});
-
-router.get('/records', (req, res) => {
-  res.json({ ok: true, data: salesRecords });
-});
-
-router.post('/records', (req, res) => {
-  const { posId, day, forecast, realization, followUp } = req.body || {};
-
-  if (!posId || !day) {
-    return res.status(400).json({ ok: false, message: 'posId et day sont obligatoires' });
+router.get('/dashboard', async (req, res) => {
+  try {
+    const ventes = await db.VenteDsmAuPos.findAll();
+    const totalRealization = ventes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
+    const posCount = await db.Pos.count();
+    
+    res.json({
+      ok: true,
+      data: {
+        totalRealization,
+        posCount,
+        recordsCount: ventes.length,
+        currentRole: req.user.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, message: error.message });
   }
+});
 
-  const record = {
-    id: `sale-${Date.now()}`,
-    posId,
-    day,
-    forecast: Number(forecast || 0),
-    realization: Number(realization || 0),
-    followUp: Number(followUp || 0)
-  };
+router.get('/records', async (req, res) => {
+  try {
+    const records = await db.VenteDsmAuPos.findAll({
+      include: [
+        { model: db.Dsm, as: 'dsm' },
+        { model: db.Pos, as: 'pos' },
+        { model: db.Utilisateur, as: 'saisi_par' }
+      ]
+    });
+    res.json({ ok: true, data: records });
+  } catch (error) {
+    res.status(500).json({ ok: false, message: error.message });
+  }
+});
 
-  salesRecords.push(record);
-
-  return res.status(201).json({ ok: true, data: record });
+router.post('/records', async (req, res) => {
+  const { pos_id, date_vente, quantite_vendu, montant } = req.body;
+  
+  try {
+    const record = await db.VenteDsmAuPos.create({
+      pos_id,
+      utilisateur_id: req.user.id,
+      date_vente,
+      quantite_vendu,
+      montant
+    });
+    res.status(201).json({ ok: true, data: record });
+  } catch (error) {
+    res.status(500).json({ ok: false, message: error.message });
+  }
 });
 
 module.exports = router;

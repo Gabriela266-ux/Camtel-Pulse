@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(36),
       allowNull: false,
       references: {
-        model: 'centres',
+        model: 'centre',
         key: 'id'
       }
     },
