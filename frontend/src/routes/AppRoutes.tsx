@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { AdminPage } from '../pages/AdminPage';
+import { ModificationsPage } from '../pages/ModificationsPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
@@ -38,6 +39,14 @@ export const AppRoutes: React.FC = () => {
             <AdminRoute>
               <AdminPage />
             </AdminRoute>
+          }
+        />
+        <Route
+          path="/modifications"
+          element={
+            <ProtectedRoute>
+              <ModificationsPage />
+            </ProtectedRoute>
           }
         />
         <Route path="*" element={<Navigate to="/login" replace />} />

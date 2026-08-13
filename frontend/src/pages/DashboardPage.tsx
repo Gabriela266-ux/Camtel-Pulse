@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -332,11 +332,13 @@ export const DashboardPage: React.FC = () => {
             <p className="flex-1 font-medium">
               Master Color est sous surveillance aujourd&apos;hui. Ajoutez les DSM puis les POS pour détailler les alertes terrain.
             </p>
-            {canManageNetwork && (
-              <button type="button" className="font-bold text-rose-700 underline underline-offset-2">
-                Voir détails →
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate('/modifications')}
+              className="font-bold text-rose-700 underline underline-offset-2"
+            >
+              Voir détails →
+            </button>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
