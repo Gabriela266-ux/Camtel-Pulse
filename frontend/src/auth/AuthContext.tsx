@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState } from 'react';
+import type { AppRole } from '../types';
 
 export interface User {
   id: number;
   nom_complet: string;
   email: string;
-  role: 'ADMIN' | 'MANAGER' | 'CHEF_OPE' | 'OPERATIONNEL';
+  role: AppRole;
+  partenaireId?: number;
 }
 
 interface AuthContextType {
