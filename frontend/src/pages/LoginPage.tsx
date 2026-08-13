@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import type { AppRole } from '../types';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -8,6 +9,7 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState('chef.operationnel@camtel.cm');
   const [password, setPassword] = useState('••••••••••••');
+  const [role, setRole] = useState<AppRole>('OPERATIONNEL');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,9 +17,10 @@ export const LoginPage: React.FC = () => {
     // 1. Enregistrement de la session
     login('fake-jwt-token-camtel-2026', {
       id: 1,
-      nom_complet: 'Chef Opérationnel CDPSM',
+      nom_complet: role === 'CHEF_OPE' ? 'Chef Opérationnel CDPSM' : 'Opérationnel Glotelho',
       email,
-      role: 'CHEF_OPE',
+      role,
+      partenaireId: role === 'OPERATIONNEL' ? 101 : undefined,
     });
 
     // 2. Navigation dynamique vers le dashboard
@@ -59,6 +62,22 @@ export const LoginPage: React.FC = () => {
               className="w-full p-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              Rôle de démo
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as AppRole)}
+              className="w-full p-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="OPERATIONNEL">Opérationnel</option>
+              <option value="CHEF_OPE">Chef opérationnel</option>
+              <option value="MANAGER">Manager</option>
+              <option value="ADMIN">Administrateur</option>
+            </select>
           </div>
 
           <button

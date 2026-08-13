@@ -21,6 +21,14 @@ export interface CentreHierarchy {
   da: DANode[];
 }
 
+export type AppRole = 'ADMIN' | 'MANAGER' | 'CHEF_OPE' | 'OPERATIONNEL';
+
+export type EntitySelection =
+  | { type: 'CENTRE'; id: number; nom: string }
+  | { type: 'DA'; id: number; nom: string }
+  | { type: 'DSM'; id: number; nom: string }
+  | { type: 'POS'; id: number; nom: string };
+
 export interface KPICardsData {
   objectif_mensuel: number;
   realise_cumule: number;
@@ -33,8 +41,18 @@ export interface KPICardsData {
 export interface DashboardData {
   entite_id: number;
   nom_entite: string;
-  entite_type: 'CENTRE' | 'DA' | 'DSM' | 'POS';
-  breadcrumb: string;
   kpi: KPICardsData;
+}
+
+export interface DailyRecord {
+  date: string;
+  prevision_ca: number;
+  stock_journalier: number;
+  realisation_va: number;
+  cumul_achat: number;
+  ecart_stock_sec: number;
+  ecart_jour: number;
+  ecart_cumule: number;
+  statut: 'NORMAL' | 'CRITIQUE';
 }
 
