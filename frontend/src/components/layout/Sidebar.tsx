@@ -1,40 +1,29 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Store } from 'lucide-react';
+import { ChevronLeft, Store, Search, X } from 'lucide-react';
 import { HierarchyTree } from '../hierarchy/HierarchyTree';
-import type { CentreHierarchy, POSNode } from '../../types';
+import type { CentreHierarchy, EntitySelection } from '../../types';
 
 interface SidebarProps {
   hierarchyData: CentreHierarchy;
-  onSelectPOS: (pos: POSNode) => void;
-  onSelectDSM?: (dsm: { id: number; nom: string }) => void;
-  onSelectDA?: (da: { id: number; nom: string }) => void;
-  selectedPosId?: number;
-  canManageHierarchy?: boolean;
-  onAddDSM?: (daId: number) => void;
-  onAddPOS?: (dsmId: number) => void;
-  onEditDSM?: (dsmId: number) => void;
-  onEditPOS?: (posId: number) => void;
-  onRemoveDSM?: (dsmId: number) => void;
-  onRemovePOS?: (posId: number) => void;
+  role: string;
+  onSelectEntity: (entity: EntitySelection) => void;
+  onAddDSM: (daId: number) => void;
+  onAddPOS: (dsmId: number) => void;
+  onMovePOS: (posId: number) => void;
+  selectedEntityId?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   hierarchyData,
-  onSelectPOS,
-  onSelectDSM,
-  onSelectDA,
-  selectedPosId,
-  canManageHierarchy = false,
+  role,
+  onSelectEntity,
   onAddDSM,
   onAddPOS,
-  onEditDSM,
-  onEditPOS,
-  onRemoveDSM,
-  onRemovePOS,
+  onMovePOS,
+  selectedEntityId,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [identitySearch, setIdentitySearch] = useState('');
-  const [selectedRole, setSelectedRole] = useState('chef-operationnelle');
+  const [searchQuery, setSearchQuery] = useState('');
 
   return (
     <aside
@@ -42,87 +31,103 @@ export const Sidebar: React.FC<SidebarProps> = ({
         isCollapsed ? 'w-16' : 'w-72'
       }`}
     >
-      {/* En-tête avec bouton Toggle */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-100 h-16">
-        {!isCollapsed && (
-          <span className="font-bold text-slate-800 text-sm truncate">
-            Réseau & Hiérarchie
-          </span>
-        )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors ml-auto"
-          title={isCollapsed ? 'Dérouler le menu' : 'Réduire le menu'}
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
-      </div>
-
-      {!isCollapsed && (
-        <div className="px-3 pt-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-sky-600"></span>
-              Rechercher l'identité
-            </div>
-            <div className="mt-2">
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                Identité entreprise
-              </label>
-              <input
-                value={identitySearch}
-                onChange={(event) => setIdentitySearch(event.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                placeholder="Entrer l'identité"
-              />
-            </div>
-            <div className="mt-2">
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                Choisir un profil
-              </label>
-              <select
-                value={selectedRole}
-                onChange={(event) => setSelectedRole(event.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-              >
-                <option value="chef-operationnelle">Chef Opérationnelle</option>
-                <option value="op-glotelho">Opérationnelle - Glotelho (Master SIM 1)</option>
-                <option value="op-masters-colo">Opérationnelle - Masters Colo (Master SIM 2)</option>
-                <option value="manager">Manager</option>
-              </select>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-500">
-                {selectedRole === 'chef-operationnelle' && 'Chef Opérationnelle'}
-                {selectedRole === 'op-glotelho' && 'Opérationnelle Glotelho'}
-                {selectedRole === 'op-masters-colo' && 'Opérationnelle Masters Colo'}
-                {selectedRole === 'manager' && 'Manager'}
-              </span>
-              <button className="rounded-lg bg-sky-600 px-3 py-1 text-[10px] font-black text-white hover:bg-sky-700">
-                OK
-              </button>
-            </div>
+      <div className="border-b border-slate-100 p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="h-14 w-14 overflow-hidden rounded-xl bg-white shadow-sm flex items-center justify-center border border-slate-100">
+            <img src="/logo-camtel.png"  alt="Logo Camtel" className="h-full w-full object-contain"/>
           </div>
+
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-bold leading-none text-slate-800">
+                Camtel-Pulse
+              </div>
+              <div className="mt-0.5 truncate text-xs text-slate-400">CPDSM 1</div>
+            </div>
+          )}
+
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Ouvrir la sidebar' : 'Réduire la sidebar'}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <ChevronLeft
+              className={`h-4 w-4 transition-transform duration-300 ${
+                isCollapsed ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
         </div>
-      )}
+
+        {!isCollapsed && (
+          <>
+            <div className="mb-4 flex gap-1">
+              <div className="h-0.5 flex-1 rounded-full bg-sky-600" />
+              <div className="h-0.5 flex-1 rounded-full border border-slate-200 bg-white" />
+              <div className="h-0.5 flex-1 rounded-full bg-sky-600" />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Rôle actif</label>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+                {role === 'ADMIN' && 'Administrateur'}
+                {role === 'MANAGER' && 'Manager'}
+                {role === 'CHEF_OPE' && 'Chef opérationnel'}
+                {role === 'OPERATIONNEL' && 'Opérationnel'}
+              </div>
+
+              <div className="mt-2 rounded-lg border border-sky-100 bg-sky-100 px-2.5 py-2 text-xs leading-snug text-sky-600">
+                {role === 'ADMIN' && 'Accès complet CPDSM 1'}
+                {role === 'MANAGER' && 'Lecture seule sur tous les indicateurs'}
+                {role === 'CHEF_OPE' && 'CPDSM 1 - Glotelho et Master Color'}
+                {role === 'OPERATIONNEL' && 'Partenaire affecté - Glotelho'}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Contenu */}
       <div className="flex-1 overflow-y-auto p-3">
         {!isCollapsed ? (
-          <HierarchyTree
-            data={hierarchyData}
-            onSelectPOS={onSelectPOS}
-            onSelectDSM={onSelectDSM}
-            onSelectDA={onSelectDA}
-            selectedPosId={selectedPosId}
-            canManageHierarchy={canManageHierarchy}
-            onAddDSM={onAddDSM}
-            onAddPOS={onAddPOS}
-            onEditDSM={onEditDSM}
-            onEditPOS={onEditPOS}
-            onRemoveDSM={onRemoveDSM}
-            onRemovePOS={onRemovePOS}
-          />
+          <>
+            {!isCollapsed && (
+              <div className="border-b border-slate-100 px-3 py-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Client, DSM, POS..."
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-8 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      aria-label="Effacer la recherche"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <HierarchyTree
+              data={hierarchyData}
+              role={role}
+              onSelectEntity={onSelectEntity}
+              onAddDSM={onAddDSM}
+              onAddPOS={onAddPOS}
+              onMovePOS={onMovePOS}
+              selectedEntityId={selectedEntityId}
+              searchQuery={searchQuery}
+            />
+          </>
         ) : (
           <div className="flex flex-col items-center gap-4 mt-2">
             <div title="Arbre Réseau">

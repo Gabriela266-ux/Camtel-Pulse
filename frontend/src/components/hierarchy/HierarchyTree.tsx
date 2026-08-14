@@ -1,41 +1,59 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Building2, Store, Network } from 'lucide-react';
-import type { CentreHierarchy, POSNode } from '../../types';
+import { ChevronDown, ChevronRight, Building2, Store, Network, Plus, MoveRight } from 'lucide-react';
+import type { CentreHierarchy, EntitySelection } from '../../types';
 
 interface HierarchyTreeProps {
   data: CentreHierarchy;
-  onSelectPOS: (pos: POSNode) => void;
-  onSelectDSM?: (dsm: { id: number; nom: string }) => void;
-  onSelectDA?: (da: { id: number; nom: string }) => void;
-  selectedPosId?: number;
-  canManageHierarchy?: boolean;
-  onAddDSM?: (daId: number) => void;
-  onAddPOS?: (dsmId: number) => void;
-  onEditDSM?: (dsmId: number) => void;
-  onEditPOS?: (posId: number) => void;
-  onRemoveDSM?: (dsmId: number) => void;
-  onRemovePOS?: (posId: number) => void;
+  role: string;
+  onSelectEntity: (entity: EntitySelection) => void;
+  onAddDSM: (daId: number) => void;
+  onAddPOS: (dsmId: number) => void;
+  onMovePOS: (posId: number) => void;
+  selectedEntityId?: number;
+  searchQuery: string;
 }
 
 export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
   data,
-  onSelectPOS,
-  onSelectDSM,
-  onSelectDA,
-  selectedPosId,
-  canManageHierarchy = false,
+  role,
+  onSelectEntity,
   onAddDSM,
   onAddPOS,
-  onEditDSM,
-  onEditPOS,
-  onRemoveDSM,
-  onRemovePOS,
+  onMovePOS,
+  selectedEntityId,
+  searchQuery,
 }) => {
-  const [openDA, setOpenDA] = useState<Record<number, boolean>>({ 101: true, 102: true });
-  const [openDSM, setOpenDSM] = useState<Record<number, boolean>>({ 201: true, 202: true, 203: true });
+  const [openDA, setOpenDA] = useState<Record<number, boolean>>({ 101: true });
+  const [openDSM, setOpenDSM] = useState<Record<number, boolean>>({});
+  const canManageNetwork = role === 'CHEF_OPE' || role === 'OPERATIONNEL';
+  const canMovePOS = role === 'CHEF_OPE';
 
   const toggleDA = (id: number) => setOpenDA((p) => ({ ...p, [id]: !p[id] }));
   const toggleDSM = (id: number) => setOpenDSM((p) => ({ ...p, [id]: !p[id] }));
+
+  const query = searchQuery.trim().toLocaleLowerCase('fr-FR');
+
+  const filteredDA = data.da
+    .map((da) => ({
+      ...da,
+      dsm: da.dsm
+        .map((dsm) => ({
+          ...dsm,
+          pos: dsm.pos.filter((pos) =>
+            pos.nom.toLocaleLowerCase('fr-FR').includes(query),
+          ),
+        }))
+        .filter(
+          (dsm) =>
+            dsm.nom.toLocaleLowerCase('fr-FR').includes(query) || dsm.pos.length > 0,
+        ),
+    }))
+    .filter(
+      (da) =>
+        !query ||
+        da.nom.toLocaleLowerCase('fr-FR').includes(query) ||
+        da.dsm.length > 0,
+    );
 
   return (
     <div className="text-sm select-none">
@@ -47,12 +65,12 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
 
       {/* Niveau Directeurs Associés / Master SIM */}
       <div className="pl-2 space-y-1">
-        {data.da.map((da) => (
+        {filteredDA.map((da) => (
           <div key={da.id}>
             <button
               onClick={() => {
                 toggleDA(da.id);
-                onSelectDA?.(da);
+                onSelectEntity({ type: 'DA', id: da.id, nom: da.nom });
               }}
               className="flex items-center gap-1.5 w-full p-1.5 text-left font-semibold text-slate-700 hover:bg-slate-50 rounded"
             >
@@ -68,87 +86,84 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
             {/* Niveau DSM */}
             {openDA[da.id] && (
               <div className="pl-4 space-y-1 mt-1">
-                {da.dsm.map((dsm) => (
-                  <div key={dsm.id}>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          toggleDSM(dsm.id);
-                          onSelectDSM?.(dsm);
-                        }}
-                        className="flex items-center gap-1.5 flex-1 p-1.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 rounded"
-                      >
-                        {openDSM[dsm.id] ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                        )}
-                        <span>{dsm.nom}</span>
-                      </button>
+                {canManageNetwork && (
+                  <button
+                    type="button"
+                    onClick={() => onAddDSM(da.id)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Ajouter DSM
+                  </button>
+                )}
 
-                      {canManageHierarchy && (
-                        <span className="flex items-center gap-1">
-                          <button
-                            onClick={() => onAddPOS?.(dsm.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
-                            title="Ajouter POS"
-                          >
-                            + POS
-                          </button>
-                          <button
-                            onClick={() => onEditDSM?.(dsm.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100 hover:bg-sky-100"
-                            title="Modifier DSM"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => onRemoveDSM?.(dsm.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-100"
-                            title="Supprimer DSM"
-                          >
-                            Del
-                          </button>
-                        </span>
+                {da.dsm.length === 0 && (
+                  <div className="rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-400">
+                    Aucun DSM ajouté.
+                  </div>
+                )}
+
+                {da.dsm.map((dsm) => (
+                  <div key={dsm.id} className="space-y-1">
+                    <button
+                      onClick={() => {
+                        toggleDSM(dsm.id);
+                        onSelectEntity({ type: 'DSM', id: dsm.id, nom: dsm.nom });
+                      }}
+                      className="flex items-center gap-1.5 w-full p-1.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 rounded"
+                    >
+                      {openDSM[dsm.id] ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                       )}
-                    </div>
+                      <span>{dsm.nom}</span>
+                    </button>
+
+                    {openDSM[dsm.id] && canManageNetwork && (
+                      <button
+                        type="button"
+                        onClick={() => onAddPOS(dsm.id)}
+                        className="ml-5 inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Ajouter POS
+                      </button>
+                    )}
 
                     {/* Niveau POS */}
                     {openDSM[dsm.id] && (
                       <div className="pl-5 space-y-0.5 mt-0.5">
+                        {dsm.pos.length === 0 && (
+                          <div className="rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-400">
+                            Aucun POS ajouté.
+                          </div>
+                        )}
+
                         {dsm.pos.map((pos) => {
-                          const isSelected = pos.id === selectedPosId;
+                          const isSelected = pos.id === selectedEntityId;
                           return (
                             <div key={pos.id} className="flex items-center gap-1">
                               <button
-                                onClick={() => onSelectPOS(pos)}
-                                className={`flex items-center gap-2 w-full p-1.5 text-xs rounded transition-colors text-left ${
+                                onClick={() => onSelectEntity({ type: 'POS', id: pos.id, nom: pos.nom })}
+                                className={`flex min-w-0 flex-1 items-center gap-2 rounded p-1.5 text-left text-xs transition-colors ${
                                   isSelected
-                                    ? 'bg-sky-50 text-sky-700 font-bold border-l-2 border-sky-600'
+                                    ? 'border-l-2 border-sky-600 bg-sky-50 font-bold text-sky-700'
                                     : 'text-slate-600 hover:bg-slate-100'
                                 }`}
                               >
-                                <Store className="w-3.5 h-3.5 shrink-0" />
+                                <Store className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">{pos.nom}</span>
                               </button>
-
-                              {canManageHierarchy && (
-                                <span className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => onEditPOS?.(pos.id)}
-                                    className="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200"
-                                    title="Modifier POS"
-                                  >
-                                    ✎
-                                  </button>
-                                  <button
-                                    onClick={() => onRemovePOS?.(pos.id)}
-                                    className="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200"
-                                    title="Supprimer POS"
-                                  >
-                                    ✕
-                                  </button>
-                                </span>
+                              {canMovePOS && (
+                                <button
+                                  type="button"
+                                  onClick={() => onMovePOS(pos.id)}
+                                  className="rounded p-1 text-amber-600 hover:bg-amber-50"
+                                  title="Modifier l'emplacement du POS"
+                                >
+                                  <MoveRight className="h-3.5 w-3.5" />
+                                </button>
                               )}
                             </div>
                           );
@@ -157,17 +172,6 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                     )}
                   </div>
                 ))}
-
-                {canManageHierarchy && (
-                  <div className="pl-2 pt-1">
-                    <button
-                      onClick={() => onAddDSM?.(da.id)}
-                      className="text-[10px] font-bold px-2 py-1 rounded border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100"
-                    >
-                      + Ajouter DSM
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
