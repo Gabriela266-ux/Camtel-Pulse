@@ -9,7 +9,7 @@ interface EntryModalProps {
     entityId: number;
     date: string;
     stockJournalier: number;
-    realisationVa: number;
+    achat: number;
   }) => void;
 }
 
@@ -51,17 +51,27 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [entityId, setEntityId] = useState(entities[0]?.id ?? 101);
   const [date, setDate] = useState(defaultDate);
   const [stockJournalier, setStockJournalier] = useState('');
-  const [realisationVa, setRealisationVa] = useState('');
+  const [achat, setAchat] = useState('');
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stockJournalier || !realisationVa) return;
+    if (!stockJournalier || !achat) return;
+
+    const selectedDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      alert('Vous ne pouvez pas modifier les données des jours passés.');
+      return;
+    }
 
     onSubmit({
       entityId,
       date,
       stockJournalier: Number(stockJournalier),
-      realisationVa: Number(realisationVa),
+      achat: Number(achat),
     });
   };
 
@@ -77,7 +87,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
           <h2 className="text-sm font-black text-slate-800">Saisie journalière</h2>
           <p className="mt-1 text-xs text-slate-500">
-            L'opérationnel renseigne le stock journalier et la Réalisation/VA(U).
+            L&apos;opérationnel renseigne le stock journalier et l&apos;achat du jour.
           </p>
         </div>
 
@@ -107,8 +117,10 @@ export const EntryModal: React.FC<EntryModalProps> = ({
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
+              min={new Date().toISOString().split('T')[0]}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
             />
+            <p className="mt-1 text-[10px] text-amber-600 font-medium">⚠ Dates futures uniquement</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -128,13 +140,13 @@ export const EntryModal: React.FC<EntryModalProps> = ({
 
             <div>
               <label className="mb-1.5 block text-xs font-bold text-slate-600">
-                Réalisation/VA(U)
+                Achat (U)
               </label>
               <input
                 type="number"
                 min={0}
-                value={realisationVa}
-                onChange={(event) => setRealisationVa(event.target.value)}
+                value={achat}
+                onChange={(event) => setAchat(event.target.value)}
                 placeholder="ex: 640"
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 font-mono text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-200"
               />
@@ -152,7 +164,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
           </button>
           <button
             type="submit"
-            disabled={!stockJournalier || !realisationVa}
+            disabled={!stockJournalier || !achat}
             className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Enregistrer

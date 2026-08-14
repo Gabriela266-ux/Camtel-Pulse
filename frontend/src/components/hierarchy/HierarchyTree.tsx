@@ -10,7 +10,8 @@ interface HierarchyTreeProps {
   onAddPOS: (dsmId: number) => void;
   onMovePOS: (posId: number) => void;
   selectedEntityId?: number;
-  searchQuery: string;
+  searchQuery?: string;
+  isDark?: boolean;
 }
 
 export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
@@ -21,7 +22,8 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
   onAddPOS,
   onMovePOS,
   selectedEntityId,
-  searchQuery,
+  searchQuery = '',
+  isDark = false,
 }) => {
   const [openDA, setOpenDA] = useState<Record<number, boolean>>({ 101: true });
   const [openDSM, setOpenDSM] = useState<Record<number, boolean>>({});
@@ -55,11 +57,13 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
         da.dsm.length > 0,
     );
 
+  const shellClass = isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-800';
+  const subCardClass = isDark ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-400';
+
   return (
-    <div className="text-sm select-none">
-      {/* Niveau Centre */}
-      <div className="flex items-center gap-2 p-2 font-bold text-slate-800 bg-slate-100 rounded-lg mb-2">
-        <Building2 className="w-4 h-4 text-sky-600" />
+    <div className="select-none text-sm">
+      <div className={`mb-2 flex items-center gap-2 rounded-lg p-2 font-bold ${shellClass}`}>
+        <Building2 className="h-4 w-4 text-sky-600" />
         <span className="truncate">{data.nom}</span>
       </div>
 
@@ -72,7 +76,9 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                 toggleDA(da.id);
                 onSelectEntity({ type: 'DA', id: da.id, nom: da.nom });
               }}
-              className="flex items-center gap-1.5 w-full p-1.5 text-left font-semibold text-slate-700 hover:bg-slate-50 rounded"
+              className={`flex w-full items-center gap-1.5 rounded p-1.5 text-left font-semibold ${
+                isDark ? 'text-slate-100 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'
+              }`}
             >
               {openDA[da.id] ? (
                 <ChevronDown className="w-4 h-4 text-slate-400" />
@@ -90,7 +96,11 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                   <button
                     type="button"
                     onClick={() => onAddDSM(da.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100"
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold ${
+                      isDark
+                        ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20'
+                        : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                    }`}
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Ajouter DSM
@@ -98,7 +108,7 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                 )}
 
                 {da.dsm.length === 0 && (
-                  <div className="rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-400">
+                  <div className={`rounded-md px-2.5 py-2 text-xs ${subCardClass}`}>
                     Aucun DSM ajouté.
                   </div>
                 )}
@@ -110,7 +120,9 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                         toggleDSM(dsm.id);
                         onSelectEntity({ type: 'DSM', id: dsm.id, nom: dsm.nom });
                       }}
-                      className="flex items-center gap-1.5 w-full p-1.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 rounded"
+                      className={`flex w-full items-center gap-1.5 rounded p-1.5 text-left text-xs font-medium ${
+                        isDark ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
                     >
                       {openDSM[dsm.id] ? (
                         <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -124,7 +136,11 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                       <button
                         type="button"
                         onClick={() => onAddPOS(dsm.id)}
-                        className="ml-5 inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                        className={`ml-5 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold ${
+                          isDark
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                        }`}
                       >
                         <Plus className="h-3.5 w-3.5" />
                         Ajouter POS
@@ -135,7 +151,7 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                     {openDSM[dsm.id] && (
                       <div className="pl-5 space-y-0.5 mt-0.5">
                         {dsm.pos.length === 0 && (
-                          <div className="rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-400">
+                          <div className={`rounded-md px-2.5 py-2 text-xs ${subCardClass}`}>
                             Aucun POS ajouté.
                           </div>
                         )}
@@ -148,8 +164,12 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                                 onClick={() => onSelectEntity({ type: 'POS', id: pos.id, nom: pos.nom })}
                                 className={`flex min-w-0 flex-1 items-center gap-2 rounded p-1.5 text-left text-xs transition-colors ${
                                   isSelected
-                                    ? 'border-l-2 border-sky-600 bg-sky-50 font-bold text-sky-700'
-                                    : 'text-slate-600 hover:bg-slate-100'
+                                    ? isDark
+                                      ? 'border-l-2 border-sky-600 bg-sky-500/10 font-bold text-sky-300'
+                                      : 'border-l-2 border-sky-600 bg-sky-50 font-bold text-sky-700'
+                                    : isDark
+                                      ? 'text-slate-200 hover:bg-slate-800'
+                                      : 'text-slate-600 hover:bg-slate-100'
                                 }`}
                               >
                                 <Store className="h-3.5 w-3.5 shrink-0" />
