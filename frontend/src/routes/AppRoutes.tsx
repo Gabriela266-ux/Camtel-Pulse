@@ -6,6 +6,11 @@ import { DashboardPage } from '../pages/DashboardPage';
 import { AdminPage } from '../pages/AdminPage';
 import { ModificationsPage } from '../pages/ModificationsPage';
 
+interface AppRoutesProps {
+  isDark: boolean;
+  onToggleTheme: () => void;
+}
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
   return token ? <>{children}</> : <Navigate to="/login" replace />;
@@ -20,16 +25,16 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
-export const AppRoutes: React.FC = () => {
+export const AppRoutes: React.FC<AppRoutesProps> = ({ isDark, onToggleTheme }) => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage isDark={isDark} onToggleTheme={onToggleTheme} />} />
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <DashboardPage isDark={isDark} onToggleTheme={onToggleTheme} />
             </ProtectedRoute>
           }
         />
@@ -37,7 +42,7 @@ export const AppRoutes: React.FC = () => {
           path="/admin"
           element={
             <AdminRoute>
-              <AdminPage />
+              <AdminPage isDark={isDark} onToggleTheme={onToggleTheme} />
             </AdminRoute>
           }
         />
@@ -45,7 +50,7 @@ export const AppRoutes: React.FC = () => {
           path="/modifications"
           element={
             <ProtectedRoute>
-              <ModificationsPage />
+              <ModificationsPage isDark={isDark} onToggleTheme={onToggleTheme} />
             </ProtectedRoute>
           }
         />

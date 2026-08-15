@@ -1,1 +1,97 @@
 @import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --bg-soft: #f8fafc;
+  --panel: rgba(255, 255, 255, 0.9);
+  --panel-strong: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --line: rgba(148, 163, 184, 0.25);
+  --primary: #0284c7;
+  --primary-strong: #0369a1;
+  --primary-soft: rgba(2, 132, 199, 0.1);
+  --success: #0f766e;
+  --warning: #b45309;
+  --danger: #dc2626;
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg-soft: #020817;
+  --panel: rgba(15, 23, 42, 0.95);
+  --panel-strong: #0f172a;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --line: rgba(51, 65, 85, 0.85);
+  --primary: #38bdf8;
+  --primary-strong: #7dd3fc;
+  --primary-soft: rgba(56, 189, 248, 0.12);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  min-height: 100%;
+  margin: 0;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+body {
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+button, input, select {
+  transition: all 180ms ease;
+}
+
+button {
+  cursor: pointer;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+@layer utilities {
+  .ui-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold leading-none shadow-sm transition-all duration-200;
+  }
+
+  .ui-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold leading-none shadow-sm transition-all duration-200;
+    @apply bg-sky-600 text-white hover:bg-sky-700 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0;
+  }
+
+  .ui-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold leading-none shadow-sm transition-all duration-200;
+    @apply border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:-translate-y-0.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700;
+  }
+
+  .ui-button-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold leading-none shadow-sm transition-all duration-200;
+    @apply border border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+
+  .panel-card {
+    @apply rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/90;
+  }
+
+  .panel-soft {
+    @apply rounded-2xl border border-slate-200/80 bg-slate-50/90 shadow-sm dark:border-slate-700 dark:bg-slate-800/80;
+  }
+}
