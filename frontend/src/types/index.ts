@@ -31,11 +31,12 @@ export type EntitySelection =
 
 export interface KPICardsData {
   objectif_mensuel: number;
-  realise_cumule: number;
+  achat_cumule: number;
   stock_securite: number;
   ecart_jour: number;
   ecart_cumule: number;
   statut_alerte: 'NORMAL' | 'CRITIQUE';
+  consommation: number;
 }
 
 export interface DashboardData {
@@ -44,13 +45,22 @@ export interface DashboardData {
   kpi: KPICardsData;
 }
 
+export interface OperationalAssignment {
+  userId: number;
+  nomComplet: string;
+  partenaireId: number;
+  partenaireNom: string;
+  dsmId?: number;
+  posId?: number;
+}
+
 export interface DailyRecord {
   date: string;
   prevision_ca: number;
+  achat: number;
   stock_journalier: number;
-  realisation_va: number;
   cumul_achat: number;
-  ecart_stock_sec: number;
+  consommation: number | null;
   ecart_jour: number;
   ecart_cumule: number;
   statut: 'NORMAL' | 'CRITIQUE';
