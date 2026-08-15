@@ -19,6 +19,7 @@ interface ConsumptionChartProps {
 
 export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
   records,
+  stockSecurite = 0,
   isDark = false,
 }) => {
   const [period, setPeriod] = useState<7 | 14 | 30>(7);
@@ -28,7 +29,7 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
   const chartData = visibleRecords.map((record) => ({
     date: record.date.split('-')[2],
     consommation: record.consommation ?? 0,
-    prevision: record.prevision_ca ?? 0,
+    stockSecurite,
   }));
 
   const sectionClass = isDark
@@ -99,8 +100,8 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
               wrapperStyle={{ fontSize: '12px', paddingTop: '12px', fontWeight: 500 }} 
               iconType="square"
             />
-            <Bar dataKey="consommation" name="Ventes Réalisées" fill="#0284c7" radius={[6, 6, 0, 0]} />
-            <Bar dataKey="prevision" name="Prévisions" fill="#cbd5e1" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="consommation" name="Consommation" fill="#0284c7" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="stockSecurite" name="Stock de sécurité" fill="#f59e0b" radius={[6, 6, 0, 0]} opacity={0.35} />
           </BarChart>
         </ResponsiveContainer>
       </div>

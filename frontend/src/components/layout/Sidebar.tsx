@@ -7,8 +7,15 @@ interface SidebarProps {
   hierarchyData: CentreHierarchy;
   role: string;
   onSelectEntity: (entity: EntitySelection) => void;
+  onAddPartner: () => void;
+  onEditPartner: (partnerId: number) => void;
+  onDeletePartner: (partnerId: number) => void;
   onAddDSM: (daId: number) => void;
+  onEditDSM: (dsmId: number) => void;
+  onDeleteDSM: (dsmId: number) => void;
   onAddPOS: (dsmId: number) => void;
+  onEditPOS: (posId: number) => void;
+  onDeletePOS: (posId: number) => void;
   onMovePOS: (posId: number) => void;
   selectedEntityId?: number;
   isDark?: boolean;
@@ -18,8 +25,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   hierarchyData,
   role,
   onSelectEntity,
+  onAddPartner,
+  onEditPartner,
+  onDeletePartner,
   onAddDSM,
+  onEditDSM,
+  onDeleteDSM,
   onAddPOS,
+  onEditPOS,
+  onDeletePOS,
   onMovePOS,
   selectedEntityId,
   isDark = false,
@@ -94,6 +108,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {role === 'CHEF_OPE' && 'CPDSM 1 - Glotelho et Master Color'}
                 {role === 'OPERATIONNEL' && 'Partenaire affecté - Glotelho'}
               </div>
+
+              {(role === 'ADMIN' || role === 'CHEF_OPE') && (
+                <button
+                  type="button"
+                  onClick={onAddPartner}
+                  className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold ${isDark ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20' : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
+                >
+                  + Ajouter partenaire
+                </button>
+              )}
             </div>
           </>
         )}
@@ -132,8 +156,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               data={hierarchyData}
               role={role}
               onSelectEntity={onSelectEntity}
+              onAddPartner={onAddPartner}
+              onEditPartner={onEditPartner}
+              onDeletePartner={onDeletePartner}
               onAddDSM={onAddDSM}
+              onEditDSM={onEditDSM}
+              onDeleteDSM={onDeleteDSM}
               onAddPOS={onAddPOS}
+              onEditPOS={onEditPOS}
+              onDeletePOS={onDeletePOS}
               onMovePOS={onMovePOS}
               selectedEntityId={selectedEntityId}
               searchQuery={searchQuery}

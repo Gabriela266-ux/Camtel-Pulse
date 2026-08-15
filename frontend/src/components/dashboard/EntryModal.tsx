@@ -117,10 +117,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              min={new Date().toISOString().split('T')[0]}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
             />
-            <p className="mt-1 text-[10px] text-amber-600 font-medium">⚠ Dates futures uniquement</p>
+            <p className="mt-1 text-[10px] text-slate-500 font-medium">Dates passées ou futures autorisées</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -120,13 +120,13 @@ const RoleWorkspace: React.FC<{
       title: 'Saisie et suivi du périmètre affecté',
       label: 'Opérationnel',
       description:
-        'Accès limité au partenaire affecté, avec saisie du stock journalier et de la Réalisation/VA(U).',
+        'Accès limité au partenaire affecté, avec saisie du stock journalier et de l\'Achat (U).',
       scope: 'Partenaire affecté - Glotelho',
       border: 'border-l-emerald-600',
       badge: 'bg-emerald-100 text-emerald-700',
       cards: [
         ['Périmètre', 'Glotelho', 'Saisie limitée au partenaire affecté'],
-        ['Réalisation', 'À saisir', 'Vente du jour et suivi de correction'],
+        ['Achat', 'À saisir', 'Achat du jour et suivi de correction'],
         ['Corrections', '2/5', 'Au-delà, demande validée par le chef'],
       ],
     },
@@ -200,7 +200,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [hierarchyData, setHierarchyData] = useState<CentreHierarchy>(mockHierarchyData);
   const [dashboardData, setDashboardData] = useState<DashboardData>(mockDashboardInitial);
   const [records, setRecords] = useState<DailyRecord[]>(mockDailyRecords);
-  const [referenceDate, setReferenceDate] = useState('2026-08-11');
+  const [referenceDate, setReferenceDate] = useState(new Date().toISOString().slice(0, 10));
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
@@ -244,6 +244,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
+  const handleAddPartner = () => {
+    const nom = window.prompt('Nom du partenaire à ajouter');
+    if (!nom?.trim()) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: [...tree.da, { id: Date.now(), nom: nom.trim(), dsm: [] }],
+    }));
+  };
+
+  const handleEditPartner = (partnerId: number) => {
+    const partner = hierarchyData.da.find((da) => da.id === partnerId);
+    if (!partner) return;
+
+    const nextName = window.prompt('Nouveau nom du partenaire', partner.nom);
+    if (!nextName?.trim()) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: tree.da.map((da) => (da.id === partnerId ? { ...da, nom: nextName.trim() } : da)),
+    }));
+  };
+
+  const handleDeletePartner = (partnerId: number) => {
+    const partner = hierarchyData.da.find((da) => da.id === partnerId);
+    if (!partner) return;
+
+    const confirmed = window.confirm(`Supprimer le partenaire "${partner.nom}" ?`);
+    if (!confirmed) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: tree.da.filter((da) => da.id !== partnerId),
+    }));
+  };
+
   const handleAddDSM = (daId: number) => {
     if (!canAccessDA(daId)) return;
 
@@ -253,6 +289,46 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setHierarchyData((tree) =>
       addDSM(tree, daId, { id: Date.now(), nom: nom.trim(), pos: [] }),
     );
+  };
+
+  const handleEditDSM = (dsmId: number) => {
+    const parentDA = hierarchyData.da.find((da) => da.dsm.some((dsm) => dsm.id === dsmId));
+    if (!parentDA || !canAccessDA(parentDA.id)) return;
+
+    const dsm = parentDA.dsm.find((item) => item.id === dsmId);
+    if (!dsm) return;
+
+    const nextName = window.prompt('Nouveau nom du DSM', dsm.nom);
+    if (!nextName?.trim()) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: tree.da.map((da) => ({
+        ...da,
+        dsm: da.dsm.map((item) =>
+          item.id === dsmId ? { ...item, nom: nextName.trim() } : item,
+        ),
+      })),
+    }));
+  };
+
+  const handleDeleteDSM = (dsmId: number) => {
+    const parentDA = hierarchyData.da.find((da) => da.dsm.some((dsm) => dsm.id === dsmId));
+    if (!parentDA || !canAccessDA(parentDA.id)) return;
+
+    const dsm = parentDA.dsm.find((item) => item.id === dsmId);
+    if (!dsm) return;
+
+    const confirmed = window.confirm(`Supprimer le DSM "${dsm.nom}" ?`);
+    if (!confirmed) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: tree.da.map((da) => ({
+        ...da,
+        dsm: da.dsm.filter((item) => item.id !== dsmId),
+      })),
+    }));
   };
 
   const handleAddPOS = (dsmId: number) => {
@@ -265,6 +341,54 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     if (!nom?.trim()) return;
 
     setHierarchyData((tree) => addPOS(tree, dsmId, { id: Date.now(), nom: nom.trim() }));
+  };
+
+  const handleEditPOS = (posId: number) => {
+    const parentDA = hierarchyData.da.find((da) =>
+      da.dsm.some((dsm) => dsm.pos.some((pos) => pos.id === posId)),
+    );
+    const parentDSM = parentDA?.dsm.find((dsm) => dsm.pos.some((pos) => pos.id === posId));
+    const pos = parentDSM?.pos.find((item) => item.id === posId);
+    if (!parentDA || !parentDSM || !pos || !canAccessDA(parentDA.id)) return;
+
+    const nextName = window.prompt('Nouveau nom du POS', pos.nom);
+    if (!nextName?.trim()) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: tree.da.map((da) => ({
+        ...da,
+        dsm: da.dsm.map((dsm) => ({
+          ...dsm,
+          pos: dsm.pos.map((item) =>
+            item.id === posId ? { ...item, nom: nextName.trim() } : item,
+          ),
+        })),
+      })),
+    }));
+  };
+
+  const handleDeletePOS = (posId: number) => {
+    const parentDA = hierarchyData.da.find((da) =>
+      da.dsm.some((dsm) => dsm.pos.some((pos) => pos.id === posId)),
+    );
+    const parentDSM = parentDA?.dsm.find((dsm) => dsm.pos.some((pos) => pos.id === posId));
+    const pos = parentDSM?.pos.find((item) => item.id === posId);
+    if (!parentDA || !parentDSM || !pos || !canAccessDA(parentDA.id)) return;
+
+    const confirmed = window.confirm(`Supprimer le POS "${pos.nom}" ?`);
+    if (!confirmed) return;
+
+    setHierarchyData((tree) => ({
+      ...tree,
+      da: tree.da.map((da) => ({
+        ...da,
+        dsm: da.dsm.map((dsm) => ({
+          ...dsm,
+          pos: dsm.pos.filter((item) => item.id !== posId),
+        })),
+      })),
+    }));
   };
 
   const handleMovePOS = (posId: number) => {
@@ -290,21 +414,53 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const month = Number(payload.date.slice(5, 7));
     const daysInMonth = new Date(year, month, 0).getDate();
     const stockSecurite = (dashboardData.kpi.objectif_mensuel / daysInMonth) * 3;
-    const lastCumul = records.at(-1)?.cumul_achat ?? 0;
-    const ecartJour = payload.stockJournalier - stockSecurite;
-    const nextRecord: DailyRecord = {
-      date: payload.date,
-      prevision_ca: 850,
-      achat: payload.achat,
-      stock_journalier: payload.stockJournalier,
-      cumul_achat: lastCumul + payload.achat,
-      consommation: null,
-      ecart_jour: ecartJour,
-      ecart_cumule: (records.at(-1)?.ecart_cumule ?? 0) + ecartJour,
-      statut: ecartJour >= 0 ? 'NORMAL' : 'CRITIQUE',
-    };
 
-    setRecords((prev) => [...prev.filter((record) => record.date !== payload.date), nextRecord]);
+    setRecords((prev) => {
+      const monthKey = payload.date.slice(0, 7);
+      const sorted = [...prev.filter((record) => record.date !== payload.date)].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+
+      const updatedRecord: DailyRecord = {
+        date: payload.date,
+        prevision_ca: sorted.find((record) => record.date === payload.date)?.prevision_ca ?? 0,
+        achat: payload.achat,
+        stock_journalier: payload.stockJournalier,
+        cumul_achat: 0,
+        consommation: 0,
+        ecart_jour: 0,
+        ecart_cumule: 0,
+        statut: 'NORMAL',
+      };
+
+      sorted.push(updatedRecord);
+      sorted.sort((a, b) => a.date.localeCompare(b.date));
+
+      const monthRecords = sorted.filter((record) => record.date.startsWith(monthKey));
+      let cumulAchat = 0;
+
+      const recalculated = monthRecords.map((record, index, monthList) => {
+        const nextRecord = monthList[index + 1];
+        cumulAchat += record.achat;
+        const consommation = record.stock_journalier + record.achat - (nextRecord?.stock_journalier ?? 0);
+        const ecartJour = record.stock_journalier - stockSecurite;
+
+        return {
+          ...record,
+          cumul_achat: cumulAchat,
+          consommation: Number.isFinite(consommation) ? consommation : 0,
+          ecart_jour: ecartJour,
+          statut: ecartJour >= 0 ? 'NORMAL' : 'CRITIQUE',
+        } as DailyRecord;
+      });
+
+      const recalculatedMap = new Map(recalculated.map((record) => [record.date, record]));
+
+      return sorted.map((record) =>
+        record.date.startsWith(monthKey) ? recalculatedMap.get(record.date) ?? record : record,
+      );
+    });
+
     setEntryModalOpen(false);
   };
 
@@ -324,19 +480,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     forecasts: Record<string, number>,
   ) => {
     const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const daysInMonth = new Date(year, month, 0).getDate();
 
-    setRecords((prev) =>
-      prev.map((record) => {
-        const recordMonthKey = record.date.slice(0, 7);
-        if (recordMonthKey !== monthKey) return record;
+    setRecords((prev) => {
+      const nextRows: DailyRecord[] = [];
+      const monthRecords = prev.filter((record) => record.date.slice(0, 7) === monthKey);
+      const existingByDate = new Map(monthRecords.map((record) => [record.date, record]));
 
-        const dateKey = `${record.date.slice(8, 10)}/${String(month).padStart(2, '0')}/${year}`;
-        return {
-          ...record,
-          prevision_ca: forecasts[dateKey] ?? record.prevision_ca,
-        };
-      }),
-    );
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const existing = existingByDate.get(date);
+        const dateKey = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+
+        nextRows.push({
+          date,
+          prevision_ca: forecasts[dateKey] ?? existing?.prevision_ca ?? 0,
+          achat: existing?.achat ?? 0,
+          stock_journalier: existing?.stock_journalier ?? 0,
+          cumul_achat: existing?.cumul_achat ?? 0,
+          consommation: existing?.consommation ?? 0,
+          ecart_jour: existing?.ecart_jour ?? 0,
+          ecart_cumule: existing?.ecart_cumule ?? 0,
+          statut: existing?.statut ?? 'NORMAL',
+        });
+      }
+
+      const otherRows = prev.filter((record) => record.date.slice(0, 7) !== monthKey);
+      return [...otherRows, ...nextRows].sort((a, b) => a.date.localeCompare(b.date));
+    });
   };
 
   const monthLabel = new Date(referenceDate).toLocaleDateString('fr-FR', {
@@ -371,8 +542,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         hierarchyData={visibleHierarchy}
         role={role}
         onSelectEntity={handleSelectEntity}
+        onAddPartner={handleAddPartner}
+        onEditPartner={handleEditPartner}
+        onDeletePartner={handleDeletePartner}
         onAddDSM={handleAddDSM}
+        onEditDSM={handleEditDSM}
+        onDeleteDSM={handleDeleteDSM}
         onAddPOS={handleAddPOS}
+        onEditPOS={handleEditPOS}
+        onDeletePOS={handleDeletePOS}
         onMovePOS={handleMovePOS}
         selectedEntityId={dashboardData.entite_id}
         isDark={isDark}
@@ -484,9 +662,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             </div>
 
             <div className="panel-card p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-sky-500">Réalisé cumulé</div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-sky-500">Achat cumulé</div>
               <div className="mt-3 text-2xl font-black text-sky-600">
-                {kpi.realise_cumule.toLocaleString('fr-FR')} FCFA
+                {kpi.achat_cumule.toLocaleString('fr-FR')} FCFA
               </div>
             </div>
 

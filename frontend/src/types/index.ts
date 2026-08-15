@@ -31,7 +31,7 @@ export type EntitySelection =
 
 export interface KPICardsData {
   objectif_mensuel: number;
-  realise_cumule: number;
+  achat_cumule: number;
   stock_securite: number;
   ecart_jour: number;
   ecart_cumule: number;

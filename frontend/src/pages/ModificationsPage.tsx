@@ -60,8 +60,8 @@ const mockModifications: Modification[] = [
     partenaire: 'Glotelho',
     entite: 'POS Marché Central',
     detail: 'Une correction de saisie journalière a été validée.',
-    ancienneValeur: 'Réalisation : 640 U',
-    nouvelleValeur: 'Réalisation : 720 U',
+    ancienneValeur: 'Achat : 640 U',
+    nouvelleValeur: 'Achat : 720 U',
     statut: 'VALIDEE',
   },
   {

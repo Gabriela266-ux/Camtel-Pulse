@@ -261,7 +261,8 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
           </thead>
           <tbody>
             {[...records].reverse().map((record) => {
-              const isToday = record.date === '2026-08-11';
+              const todayKey = new Date().toISOString().slice(0, 10);
+              const isToday = record.date === todayKey;
               const isNormal = record.statut === 'NORMAL';
 
               return (

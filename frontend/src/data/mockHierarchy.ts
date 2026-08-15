@@ -21,13 +21,13 @@ export const mockDashboardInitial: DashboardData = {
   entite_id: 101,
   nom_entite: 'Glotelho (Master SIM 1)',
   kpi: {
-    objectif_mensuel: 1550000,
-    realise_cumule: 350000,
-    stock_securite: 150000,
-    ecart_jour: -15000,
-    ecart_cumule: -25000,
-    statut_alerte: 'CRITIQUE',
-    consommation: 1425000,
+    objectif_mensuel: 0,
+    achat_cumule: 0,
+    stock_securite: 0,
+    ecart_jour: 0,
+    ecart_cumule: 0,
+    statut_alerte: 'NORMAL',
+    consommation: 0,
   },
 };
 

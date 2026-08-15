@@ -6,8 +6,15 @@ interface HierarchyTreeProps {
   data: CentreHierarchy;
   role: string;
   onSelectEntity: (entity: EntitySelection) => void;
+  onAddPartner: () => void;
+  onEditPartner: (partnerId: number) => void;
+  onDeletePartner: (partnerId: number) => void;
   onAddDSM: (daId: number) => void;
+  onEditDSM: (dsmId: number) => void;
+  onDeleteDSM: (dsmId: number) => void;
   onAddPOS: (dsmId: number) => void;
+  onEditPOS: (posId: number) => void;
+  onDeletePOS: (posId: number) => void;
   onMovePOS: (posId: number) => void;
   selectedEntityId?: number;
   searchQuery?: string;
@@ -18,8 +25,15 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
   data,
   role,
   onSelectEntity,
+  onAddPartner,
+  onEditPartner,
+  onDeletePartner,
   onAddDSM,
+  onEditDSM,
+  onDeleteDSM,
   onAddPOS,
+  onEditPOS,
+  onDeletePOS,
   onMovePOS,
   selectedEntityId,
   searchQuery = '',
@@ -68,26 +82,60 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
       </div>
 
       {/* Niveau Directeurs Associés / Master SIM */}
-      <div className="pl-2 space-y-1">
+      <div className="pl-2 space-y-1">        {(role === 'ADMIN' || role === 'CHEF_OPE') && (
+          <button
+            type="button"
+            onClick={onAddPartner}
+            className={`mb-2 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold ${
+              isDark ? 'border-sky-500/40 bg-sky-500/10 text-sky-300' : 'border-sky-200 bg-sky-50 text-sky-700'
+            }`}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Ajouter partenaire
+          </button>
+        )}
         {filteredDA.map((da) => (
           <div key={da.id}>
-            <button
-              onClick={() => {
-                toggleDA(da.id);
-                onSelectEntity({ type: 'DA', id: da.id, nom: da.nom });
-              }}
-              className={`flex w-full items-center gap-1.5 rounded p-1.5 text-left font-semibold ${
-                isDark ? 'text-slate-100 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {openDA[da.id] ? (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  toggleDA(da.id);
+                  onSelectEntity({ type: 'DA', id: da.id, nom: da.nom });
+                }}
+                className={`flex flex-1 items-center gap-1.5 rounded p-1.5 text-left font-semibold ${
+                  isDark ? 'text-slate-100 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {openDA[da.id] ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+                <Network className="w-4 h-4 text-slate-500" />
+                <span className="truncate">{da.nom}</span>
+              </button>
+
+              {(role === 'ADMIN' || role === 'CHEF_OPE') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onEditPartner(da.id)}
+                    className="rounded p-1 text-sky-600 hover:bg-sky-50"
+                    title="Modifier le partenaire"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeletePartner(da.id)}
+                    className="rounded p-1 text-rose-600 hover:bg-rose-50"
+                    title="Supprimer le partenaire"
+                  >
+                    ✕
+                  </button>
+                </>
               )}
-              <Network className="w-4 h-4 text-slate-500" />
-              <span className="truncate">{da.nom}</span>
-            </button>
+            </div>
 
             {/* Niveau DSM */}
             {openDA[da.id] && (
@@ -115,22 +163,45 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
 
                 {da.dsm.map((dsm) => (
                   <div key={dsm.id} className="space-y-1">
-                    <button
-                      onClick={() => {
-                        toggleDSM(dsm.id);
-                        onSelectEntity({ type: 'DSM', id: dsm.id, nom: dsm.nom });
-                      }}
-                      className={`flex w-full items-center gap-1.5 rounded p-1.5 text-left text-xs font-medium ${
-                        isDark ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {openDSM[dsm.id] ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          toggleDSM(dsm.id);
+                          onSelectEntity({ type: 'DSM', id: dsm.id, nom: dsm.nom });
+                        }}
+                        className={`flex min-w-0 flex-1 items-center gap-1.5 rounded p-1.5 text-left text-xs font-medium ${
+                          isDark ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {openDSM[dsm.id] ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                        <span className="truncate">{dsm.nom}</span>
+                      </button>
+
+                      {(role === 'ADMIN' || role === 'CHEF_OPE') && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onEditDSM(dsm.id)}
+                            className="rounded p-1 text-sky-600 hover:bg-sky-50"
+                            title="Modifier le DSM"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteDSM(dsm.id)}
+                            className="rounded p-1 text-rose-600 hover:bg-rose-50"
+                            title="Supprimer le DSM"
+                          >
+                            ✕
+                          </button>
+                        </>
                       )}
-                      <span>{dsm.nom}</span>
-                    </button>
+                    </div>
 
                     {openDSM[dsm.id] && canManageNetwork && (
                       <button
@@ -175,6 +246,28 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
                                 <Store className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">{pos.nom}</span>
                               </button>
+
+                              {(role === 'ADMIN' || role === 'CHEF_OPE') && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPOS(pos.id)}
+                                    className="rounded p-1 text-sky-600 hover:bg-sky-50"
+                                    title="Modifier le POS"
+                                  >
+                                    ✎
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeletePOS(pos.id)}
+                                    className="rounded p-1 text-rose-600 hover:bg-rose-50"
+                                    title="Supprimer le POS"
+                                  >
+                                    ✕
+                                  </button>
+                                </>
+                              )}
+
                               {canMovePOS && (
                                 <button
                                   type="button"
