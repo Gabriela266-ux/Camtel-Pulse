@@ -2,7 +2,7 @@ import type { CentreHierarchy, DashboardData } from '../types';
 import { mockHierarchyData, mockDashboardInitial } from '../data/mockHierarchy';
 
 // Mettre à true pour la démo autonome, ou false dès que le backend Express tourne
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 export const apiService = {
   async getHierarchie(): Promise<CentreHierarchy> {
