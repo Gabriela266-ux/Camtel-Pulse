@@ -1,8 +1,18 @@
+'use strict';
 const bcrypt = require('bcryptjs');
 
 module.exports = {
   up: async (queryInterface) => {
+    const dateNow = new Date();
+    const hashedPassword = await bcrypt.hash('password123', 10);
+
+    // 1. Identifiants UUID prédéfinis
+    const zoneId = '00000000-0000-4000-8000-000000000001';
     const centreId = '11111111-1111-4111-8111-111111111111';
+    
+    const roleAdminId = 'a0000000-0000-4000-8000-000000000001';
+    const roleAgentId = 'a0000000-0000-4000-8000-000000000002';
+
     const daIds = {
       glotelho: '22222222-2222-4222-8222-222222222222',
       masterColor: '33333333-3333-4333-8333-333333333333'
@@ -24,16 +34,31 @@ module.exports = {
       m2a: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
     };
 
-    await queryInterface.bulkInsert('centres', [{
-      id: centreId,
-      code: 'CDPSM-01',
-      nom: 'Centre 1 CDPSM',
+    // 2. Zone
+    await queryInterface.bulkInsert('zone', [{
+      id: zoneId,
+      nom_zone: 'Zone Littoral',
       region: 'Littoral',
-      active: true,
-      created_at: new Date(),
-      updated_at: new Date()
+      created_at: dateNow,
+      updated_at: dateNow
     }]);
 
+    // 3. Centre
+    await queryInterface.bulkInsert('centre', [{
+      id: centreId,
+      nom_centre: 'Centre 1 CDPSM',
+      region: 'Littoral',
+      created_at: dateNow,
+      updated_at: dateNow
+    }]);
+
+    // 4. Roles
+    await queryInterface.bulkInsert('role', [
+      { id: roleAdminId, libelle: 'Admin', description: 'Administrateur', created_at: dateNow, updated_at: dateNow },
+      { id: roleAgentId, libelle: 'Agent', description: 'Agent Terrain', created_at: dateNow, updated_at: dateNow }
+    ]);
+
+    // 5. DA (Distributeurs Agréés)
     await queryInterface.bulkInsert('da', [
       {
         id: daIds.glotelho,
@@ -42,8 +67,8 @@ module.exports = {
         nom: 'Glotelho',
         objectif_mensuel: 3400000,
         active: true,
-        created_at: new Date(),
-        updated_at: new Date()
+        created_at: dateNow,
+        updated_at: dateNow
       },
       {
         id: daIds.masterColor,
@@ -52,96 +77,71 @@ module.exports = {
         nom: 'Master Color',
         objectif_mensuel: 2700000,
         active: true,
-        created_at: new Date(),
-        updated_at: new Date()
+        created_at: dateNow,
+        updated_at: dateNow
       }
     ]);
 
-    await queryInterface.bulkInsert('dsm', [
-      { id: dsmIds.glotelho1, da_id: daIds.glotelho, code: 'DSM-G1', nom: 'DSM Glotelho 1', objectif_mensuel: 1500000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: dsmIds.glotelho2, da_id: daIds.glotelho, code: 'DSM-G2', nom: 'DSM Glotelho 2', objectif_mensuel: 1900000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: dsmIds.master1, da_id: daIds.masterColor, code: 'DSM-M1', nom: 'DSM Master 1', objectif_mensuel: 1100000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: dsmIds.master2, da_id: daIds.masterColor, code: 'DSM-M2', nom: 'DSM Master 2', objectif_mensuel: 1600000, active: true, created_at: new Date(), updated_at: new Date() }
-    ]);
-
-    await queryInterface.bulkInsert('pos', [
-      { id: posIds.g1a, dsm_id: dsmIds.glotelho1, code: 'POS-G1-A', nom: 'POS Glotelho 1A', objectif_mensuel: 600000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: posIds.g1b, dsm_id: dsmIds.glotelho1, code: 'POS-G1-B', nom: 'POS Glotelho 1B', objectif_mensuel: 900000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: posIds.g2a, dsm_id: dsmIds.glotelho2, code: 'POS-G2-A', nom: 'POS Glotelho 2A', objectif_mensuel: 750000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: posIds.m1a, dsm_id: dsmIds.master1, code: 'POS-M1-A', nom: 'POS Master 1A', objectif_mensuel: 480000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: posIds.m1b, dsm_id: dsmIds.master1, code: 'POS-M1-B', nom: 'POS Master 1B', objectif_mensuel: 620000, active: true, created_at: new Date(), updated_at: new Date() },
-      { id: posIds.m2a, dsm_id: dsmIds.master2, code: 'POS-M2-A', nom: 'POS Master 2A', objectif_mensuel: 1600000, active: true, created_at: new Date(), updated_at: new Date() }
-    ]);
-
-    await queryInterface.bulkInsert('utilisateurs', [
+    // 6. Utilisateurs
+    await queryInterface.bulkInsert('utilisateur', [
       {
         id: '11111111-1111-5111-8111-111111111111',
-        centre_id: centreId,
+        role_id: roleAdminId,
         da_id: null,
-        dsm_id: null,
-        pos_id: null,
-        nom: 'Admin',
-        prenom: 'Principal',
+        zone_id: zoneId,
+        id_manager: null,
+        matricule: 'ADM-001',
+        nom_complet: 'Admin Principal',
         email: 'admin@camtel.local',
-        password_hash: await bcrypt.hash('Admin123!', 10),
-        role: 'admin',
-        actif: true,
-        created_at: new Date(),
-        updated_at: new Date()
+        telephone: '690000001',
+        mot_de_passe: hashedPassword,
+        statut: 'actif',
+        created_at: dateNow,
+        updated_at: dateNow
       },
       {
         id: '11111111-1111-5111-8111-111111111112',
-        centre_id: centreId,
+        role_id: roleAgentId,
         da_id: daIds.glotelho,
-        dsm_id: null,
-        pos_id: null,
-        nom: 'Chef',
-        prenom: 'Opérationnel',
+        zone_id: zoneId,
+        id_manager: '11111111-1111-5111-8111-111111111111',
+        matricule: 'AGT-001',
+        nom_complet: 'Chef Opérationnel',
         email: 'chef@camtel.local',
-        password_hash: await bcrypt.hash('Chef123!', 10),
-        role: 'chef_operationnel',
-        actif: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        id: '11111111-1111-5111-8111-111111111113',
-        centre_id: centreId,
-        da_id: daIds.glotelho,
-        dsm_id: dsmIds.glotelho1,
-        pos_id: posIds.g1a,
-        nom: 'Opérateur',
-        prenom: 'A',
-        email: 'operateur@camtel.local',
-        password_hash: await bcrypt.hash('Op123456!', 10),
-        role: 'operational',
-        actif: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        id: '11111111-1111-5111-8111-111111111114',
-        centre_id: centreId,
-        da_id: daIds.masterColor,
-        dsm_id: dsmIds.master2,
-        pos_id: posIds.m2a,
-        nom: 'Manager',
-        prenom: 'Littoral',
-        email: 'manager@camtel.local',
-        password_hash: await bcrypt.hash('Manager123!', 10),
-        role: 'manager',
-        actif: true,
-        created_at: new Date(),
-        updated_at: new Date()
+        telephone: '690000002',
+        mot_de_passe: hashedPassword,
+        statut: 'actif',
+        created_at: dateNow,
+        updated_at: dateNow
       }
+    ]);
+
+    // 7. DSM
+    await queryInterface.bulkInsert('dsm', [
+      { id: dsmIds.glotelho1, da_id: daIds.glotelho, zone_id: zoneId, nom: 'DSM Glotelho 1', raison_sociale: 'Glotelho SARL', adresse: 'Douala', contact: '+237690000010', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: dsmIds.glotelho2, da_id: daIds.glotelho, zone_id: zoneId, nom: 'DSM Glotelho 2', raison_sociale: 'Glotelho SARL', adresse: 'Douala', contact: '+237690000011', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: dsmIds.master1, da_id: daIds.masterColor, zone_id: zoneId, nom: 'DSM Master 1', raison_sociale: 'Master Color Ltd', adresse: 'Yaoundé', contact: '+237690000012', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: dsmIds.master2, da_id: daIds.masterColor, zone_id: zoneId, nom: 'DSM Master 2', raison_sociale: 'Master Color Ltd', adresse: 'Yaoundé', contact: '+237690000013', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow }
+    ]);
+
+    // 8. POS
+    await queryInterface.bulkInsert('pos', [
+      { id: posIds.g1a, dsm_id: dsmIds.glotelho1, zone_id: zoneId, nom: 'POS Glotelho 1A', raison_sociale: 'Point Glotelho 1A', adresse: 'Douala', contact: '+237690000014', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: posIds.g1b, dsm_id: dsmIds.glotelho1, zone_id: zoneId, nom: 'POS Glotelho 1B', raison_sociale: 'Point Glotelho 1B', adresse: 'Douala', contact: '+237690000015', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: posIds.g2a, dsm_id: dsmIds.glotelho2, zone_id: zoneId, nom: 'POS Glotelho 2A', raison_sociale: 'Point Glotelho 2A', adresse: 'Douala', contact: '+237690000016', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: posIds.m1a, dsm_id: dsmIds.master1, zone_id: zoneId, nom: 'POS Master 1A', raison_sociale: 'Point Master 1A', adresse: 'Yaoundé', contact: '+237690000017', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: posIds.m1b, dsm_id: dsmIds.master1, zone_id: zoneId, nom: 'POS Master 1B', raison_sociale: 'Point Master 1B', adresse: 'Yaoundé', contact: '+237690000018', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow },
+      { id: posIds.m2a, dsm_id: dsmIds.master2, zone_id: zoneId, nom: 'POS Master 2A', raison_sociale: 'Point Master 2A', adresse: 'Yaoundé', contact: '+237690000019', statut: 'actif', date_adhesion: dateNow, created_at: dateNow, updated_at: dateNow }
     ]);
   },
 
   down: async (queryInterface) => {
-    await queryInterface.bulkDelete('utilisateurs', null, {});
     await queryInterface.bulkDelete('pos', null, {});
     await queryInterface.bulkDelete('dsm', null, {});
+    await queryInterface.bulkDelete('utilisateur', null, {});
     await queryInterface.bulkDelete('da', null, {});
-    await queryInterface.bulkDelete('centres', null, {});
+    await queryInterface.bulkDelete('role', null, {});
+    await queryInterface.bulkDelete('centre', null, {});
+    await queryInterface.bulkDelete('zone', null, {});
   }
 };

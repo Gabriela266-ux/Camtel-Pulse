@@ -1,4 +1,4 @@
-const { clients, dsms, pos } = require('../data/seedData');
+const db = require('../models');
 
 class ImportService {
   parseCsvContent(content) {
@@ -26,45 +26,37 @@ class ImportService {
     return records;
   }
 
-  importFromCsv(content) {
+  async importFromCsv(content) {
     const rows = this.parseCsvContent(content);
+    const inserted = [];
 
-    const inserted = rows.map((row) => {
-      const entity = {
-        id: `import-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        name: row.nom || row.name || 'Importé',
-        monthlyGoal: Number(row.objectif || row.objectif_mensuel || row.monthlygoal || 0),
-        centerId: row.centre_id || row.centerid || 'center-1',
-        clientId: row.client_id || row.clientid || null,
-        dsmId: row.dsm_id || row.dsmid || null,
-        source: 'csv-import'
-      };
+    for (const row of rows) {
+      try {
+        const entity = {
+          nom: row.nom || row.name || 'Importé',
+          objectif_mensuel: Number(row.objectif || row.objectif_mensuel || 0),
+          centre_id: row.centre_id || null,
+          da_id: row.da_id || null,
+          dsm_id: row.dsm_id || null
+        };
 
-      if (!entity.clientId && !entity.dsmId) {
-        clients.push({
-          id: entity.id,
-          centerId: entity.centerId,
-          name: entity.name,
-          monthlyGoal: entity.monthlyGoal
-        });
-      } else if (entity.dsmId) {
-        pos.push({
-          id: entity.id,
-          dsmId: entity.dsmId,
-          name: entity.name,
-          monthlyGoal: entity.monthlyGoal
-        });
-      } else {
-        dsms.push({
-          id: entity.id,
-          clientId: entity.clientId,
-          name: entity.name,
-          monthlyGoal: entity.monthlyGoal
-        });
+        if (row.type === 'centre' || (!row.da_id && !row.dsm_id)) {
+          const centre = await db.Centre.create(entity);
+          inserted.push(centre);
+        } else if (row.type === 'da' || (row.centre_id && !row.dsm_id)) {
+          const da = await db.Da.create(entity);
+          inserted.push(da);
+        } else if (row.type === 'dsm' || (row.da_id && !row.dsm_id)) {
+          const dsm = await db.Dsm.create(entity);
+          inserted.push(dsm);
+        } else if (row.type === 'pos' || row.dsm_id) {
+          const pos = await db.Pos.create(entity);
+          inserted.push(pos);
+        }
+      } catch (error) {
+        console.error('Erreur import:', error.message);
       }
-
-      return entity;
-    });
+    }
 
     return inserted;
   }

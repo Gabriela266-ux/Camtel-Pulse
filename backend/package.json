@@ -29,6 +29,7 @@
     "mysql2": "^3.1.0",
     "sequelize": "^6.37.3",
     "sequelize-cli": "^6.5.5",
+    "sqlite3": "^6.0.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

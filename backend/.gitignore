@@ -3,3 +3,5 @@ node_modules
 coverage
 npm-debug.log*
 .DS_Store
+*_output*.txt
+detailed_seed.txt

@@ -1,4 +1,4 @@
-const { salesRecords, pos } = require('../data/seedData');
+const db = require('../models');
 
 function computeSecurityStock(objectifMensuel, daysCount = 31) {
   if (!objectifMensuel || Number(objectifMensuel) <= 0) return 0;
@@ -35,17 +35,16 @@ function applyCarryOver({ previousBalance = 0, currentStock = 0 }) {
   return Number(previousBalance || 0) + Number(currentStock || 0);
 }
 
-function computePerformanceSummary() {
-  const totalForecast = salesRecords.reduce((sum, record) => sum + Number(record.forecast || 0), 0);
-  const totalRealization = salesRecords.reduce((sum, record) => sum + Number(record.realization || 0), 0);
-  const totalFollowUp = salesRecords.reduce((sum, record) => sum + Number(record.followUp || 0), 0);
+async function computePerformanceSummary() {
+  const ventes = await db.VenteDsmAuPos.findAll();
+  const posCount = await db.Pos.count();
+  const totalMontant = ventes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
 
   return {
-    totalForecast,
-    totalRealization,
-    totalFollowUp,
-    averageCoverage: totalRealization > 0 ? (totalFollowUp / totalRealization) * 100 : 0,
-    countPos: pos.length
+    totalMontant,
+    totalQuantite: ventes.reduce((sum, v) => sum + Number(v.quantite_vendu || 0), 0),
+    posCount,
+    recordCount: ventes.length
   };
 }
 
