@@ -57,5 +57,4 @@ router.post('/records', async (req, res) => {
     res.status(500).json({ ok: false, message: error.message });
   }
 });
-
 module.exports = router;
