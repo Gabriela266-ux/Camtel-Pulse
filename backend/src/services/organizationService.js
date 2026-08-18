@@ -16,6 +16,28 @@ class OrganizationService {
     return centres;
   }
 
+  // Adapte l'arbre Sequelize (Centre/Da/Dsm/Pos, nom_centre) vers le shape
+  // attendu par le frontend (CentreHierarchy: id/nom/da/dsm/pos).
+  async getFrontendHierarchy(centerId) {
+    const centres = await this.getTree();
+    const centre = centerId ? centres.find((c) => c.id === centerId) : centres[0];
+    if (!centre) return null;
+
+    return {
+      id: centre.id,
+      nom: centre.nom_centre,
+      da: (centre.das || []).map((da) => ({
+        id: da.id,
+        nom: da.nom,
+        dsm: (da.dsms || []).map((dsm) => ({
+          id: dsm.id,
+          nom: dsm.nom,
+          pos: (dsm.pos_list || []).map((p) => ({ id: p.id, nom: p.nom })),
+        })),
+      })),
+    };
+  }
+
   async getCenterSummary() {
     const centres = await db.Centre.findAll({
       include: [{ model: db.Da, as: 'das' }]

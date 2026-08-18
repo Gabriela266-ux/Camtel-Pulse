@@ -11,6 +11,7 @@ async function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'camtel-secret');
+
     const user = await db.Utilisateur.findOne({
       where: { id: decoded.sub },
       include: [{ model: db.Role, as: 'role' }]
@@ -24,7 +25,7 @@ async function authenticate(req, res, next) {
       id: user.id,
       nom_complet: user.nom_complet,
       email: user.email,
-      role: user.role.libelle,
+      role: user.role.libelle.toLowerCase().replace(/\s+/g, '_'),
       da_id: user.da_id,
       status: user.statut
     };

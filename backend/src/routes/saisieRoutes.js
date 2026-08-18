@@ -7,7 +7,7 @@ const service = new SaisieService();
 
 router.use(authenticate);
 
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const { id_pos, date, vente_jour } = req.body || {};
 
@@ -18,16 +18,18 @@ router.post('/', (req, res, next) => {
       });
     }
 
-    const payload = service.create({ id_pos, date, vente_jour });
-    return res.status(201).json({ ok: true, data: payload });
+    const record = await service.buildRecord({ id_pos, date, vente_jour });
+    await service.create({ id_pos, date, vente_jour, utilisateur_id: req.user.id });
+    return res.status(201).json({ ok: true, data: record });
   } catch (error) {
+    console.error('[SAISIE ROUTE] Error:', error.message, error.stack);
     return next(error);
   }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { entite } = req.query;
-  const data = service.listByEntity(entite || null);
+  const data = await service.listByEntity(entite || null);
 
   return res.json({ ok: true, data });
 });

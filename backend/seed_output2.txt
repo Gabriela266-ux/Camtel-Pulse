@@ -1,9 +1,0 @@
-
-[4mSequelize CLI [Node: 22.14.0, CLI: 6.6.5, ORM: 6.37.8][24m
-
-Loaded configuration file "src\config\database.js".
-Using environment "development".
-== 202608110001-demo-centre-1: migrating =======
-
-[31mERROR:[39m SQLITE_ERROR: no such table: zone
-

@@ -1,3 +1,0 @@
-Executing (default): INSERT INTO `zone` (`id`,`nom_zone`,`region`,`created_at`,`updated_at`) VALUES ('00000000-0000-4000-8000-000000000001','Zone Littoral','Littoral','2026-08-13 08:03:50.533 +00:00','2026-08-13 08:03:50.533 +00:00');
-NAME SequelizeUniqueConstraintError
-MSG Validation error
