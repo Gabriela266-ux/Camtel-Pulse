@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Moon, SunMedium } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import type { AppRole } from '../types';
+import { apiService } from '../api/services';
 
 interface LoginPageProps {
   isDark: boolean;
@@ -13,22 +13,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('chef.operationnel@camtel.cm');
-  const [password, setPassword] = useState('••••••••••••');
-  const [role, setRole] = useState<AppRole>('OPERATIONNEL');
+  const [email, setEmail] = useState('chef@camtel.local');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
 
-    login('fake-jwt-token-camtel-2026', {
-      id: 1,
-      nom_complet: role === 'CHEF_OPE' ? 'Chef Opérationnel CDPSM' : 'Opérationnel Glotelho',
-      email,
-      role,
-      partenaireId: role === 'OPERATIONNEL' ? 101 : undefined,
-    });
-
-    navigate('/dashboard');
+    try {
+      const { token, user } = await apiService.login(email, password);
+      login(token, user);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connexion impossible');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const shellClass = isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800';
@@ -89,27 +92,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
             />
           </div>
 
-          <div>
-            <label className={`mb-1 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Rôle de démo
-            </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as AppRole)}
-              className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 ${inputClass}`}
-            >
-              <option value="OPERATIONNEL">Opérationnel</option>
-              <option value="CHEF_OPE">Chef opérationnel</option>
-              <option value="MANAGER">Manager</option>
-              <option value="ADMIN">Administrateur</option>
-            </select>
-          </div>
+          {error && (
+            <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm font-medium text-red-500">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
-            className="ui-button-primary mt-2 w-full py-3"
+            disabled={loading}
+            className="ui-button-primary mt-2 w-full py-3 disabled:opacity-60"
           >
-            Se Connecter
+            {loading ? 'Connexion…' : 'Se Connecter'}
           </button>
         </form>
       </div>

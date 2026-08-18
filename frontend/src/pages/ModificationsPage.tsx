@@ -111,8 +111,8 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
     return mockModifications.filter((modification) => {
       if (role === 'OPERATIONNEL') {
         return (
-          modification.auteurId === user?.id &&
-          modification.partenaireId === partenaireId
+          String(modification.auteurId) === String(user?.id) &&
+          String(modification.partenaireId) === String(partenaireId)
         );
       }
 
