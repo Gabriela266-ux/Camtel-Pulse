@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, AlertTriangle, CheckCircle2, Moon, SunMedium } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -7,7 +7,8 @@ import { EntryModal } from '../components/dashboard/EntryModal';
 import { ForecastModal } from '../components/dashboard/ForecastModal';
 import { ObjectiveModal } from '../components/dashboard/ObjectiveModal';
 import { AssignmentModal } from '../components/dashboard/AssignmentModal';
-import { mockHierarchyData, mockDashboardInitial, mockDailyRecords } from '../data/mockHierarchy';
+import { apiService } from '../api/services';
+
 import type {
   CentreHierarchy,
   DailyRecord,
@@ -19,20 +20,21 @@ import type {
 } from '../types';
 import { useAuth } from '../auth/AuthContext';
 import { ConsumptionChart } from '../components/dashboard/ConsumptionChart';
+import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 
 interface DashboardPageProps {
   isDark: boolean;
   onToggleTheme: () => void;
 }
 
-function addDSM(tree: CentreHierarchy, daId: number, dsm: DSMNode): CentreHierarchy {
+function addDSM(tree: CentreHierarchy, daId: string, dsm: DSMNode): CentreHierarchy {
   return {
     ...tree,
     da: tree.da.map((da) => (da.id === daId ? { ...da, dsm: [...da.dsm, dsm] } : da)),
   };
 }
 
-function addPOS(tree: CentreHierarchy, dsmId: number, pos: POSNode): CentreHierarchy {
+function addPOS(tree: CentreHierarchy, dsmId: string, pos: POSNode): CentreHierarchy {
   return {
     ...tree,
     da: tree.da.map((da) => ({
@@ -42,7 +44,7 @@ function addPOS(tree: CentreHierarchy, dsmId: number, pos: POSNode): CentreHiera
   };
 }
 
-function movePOS(tree: CentreHierarchy, posId: number, targetDsmId: number): CentreHierarchy {
+function movePOS(tree: CentreHierarchy, posId: string, targetDsmId: string): CentreHierarchy {
   let movedPOS: POSNode | undefined;
   const withoutPOS: CentreHierarchy = {
     ...tree,
@@ -197,9 +199,25 @@ const RoleWorkspace: React.FC<{
 export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [hierarchyData, setHierarchyData] = useState<CentreHierarchy>(mockHierarchyData);
-  const [dashboardData, setDashboardData] = useState<DashboardData>(mockDashboardInitial);
-  const [records, setRecords] = useState<DailyRecord[]>(mockDailyRecords);
+  const emptyHierarchy: CentreHierarchy = { id: '', nom: '', da: [] };
+  const emptyDashboard: DashboardData = {
+    entite_id: '',
+    nom_entite: '',
+    kpi: {
+      objectif_mensuel: 0,
+      achat_cumule: 0,
+      stock_securite: 0,
+      ecart_jour: 0,
+      ecart_cumule: 0,
+      statut_alerte: 'NORMAL',
+      consommation: 0,
+    },
+  };
+
+  const [hierarchyData, setHierarchyData] = useState<CentreHierarchy>(emptyHierarchy);
+  const [dashboardData, setDashboardData] = useState<DashboardData>(emptyDashboard);
+  const [records, setRecords] = useState<DailyRecord[]>([]);
+  const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   const [referenceDate, setReferenceDate] = useState(new Date().toISOString().slice(0, 10));
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
@@ -208,17 +226,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     {
       userId: 1,
       nomComplet: 'M. Atangana',
-      partenaireId: 101,
+      partenaireId: '22222222-2222-4222-8222-222222222222',
       partenaireNom: 'Glotelho',
     },
     {
       userId: 2,
       nomComplet: 'Mme Ngono',
-      partenaireId: 102,
+      partenaireId: '33333333-3333-4333-8333-333333333333',
       partenaireNom: 'Master Color',
     },
   ]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
+
   const role = user?.role ?? 'OPERATIONNEL';
   const canCreateEntry = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
   const canCreateForecast = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
@@ -234,7 +253,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
   const canManageNetwork = role === 'CHEF_OPE' || role === 'OPERATIONNEL';
 
-  const canAccessDA = (daId: number) => role !== 'OPERATIONNEL' || user?.partenaireId === daId;
+  const canAccessDA = (daId: string) => role !== 'OPERATIONNEL' || user?.partenaireId === daId;
+
+  // Charge la hiérarchie réelle depuis le backend au montage.
+  useEffect(() => {
+    setLoadingHierarchy(true);
+    apiService
+      .getHierarchie()
+      .then((data) => {
+        setHierarchyData(data);
+        const firstDA = data.da[0];
+        if (firstDA) {
+          setDashboardData((prev) => ({ ...prev, entite_id: firstDA.id, nom_entite: firstDA.nom }));
+          apiService
+            .getDashboard('DA', firstDA.id)
+            .then((d) => setDashboardData(d))
+            .catch((err) => console.error('Impossible de charger les KPI initiaux :', err));
+        }
+      })
+      .catch((err) => console.error('Impossible de charger la hiérarchie :', err))
+      .finally(() => setLoadingHierarchy(false));
+  }, []);
 
   const handleSelectEntity = (entity: EntitySelection) => {
     setDashboardData((prev) => ({
@@ -242,6 +281,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       entite_id: entity.id,
       nom_entite: entity.nom,
     }));
+
+    apiService
+      .getDashboard(entity.type, entity.id)
+      .then((data) => setDashboardData(data))
+      .catch((err) => console.error('Impossible de charger les KPI de cette entité :', err));
   };
 
   const handleAddPartner = () => {
@@ -250,11 +294,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
     setHierarchyData((tree) => ({
       ...tree,
-      da: [...tree.da, { id: Date.now(), nom: nom.trim(), dsm: [] }],
+      da: [...tree.da, { id: String(Date.now()), nom: nom.trim(), dsm: [] }],
     }));
   };
 
-  const handleEditPartner = (partnerId: number) => {
+  const handleEditPartner = (partnerId: string) => {
     const partner = hierarchyData.da.find((da) => da.id === partnerId);
     if (!partner) return;
 
@@ -267,7 +311,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
-  const handleDeletePartner = (partnerId: number) => {
+  const handleDeletePartner = (partnerId: string) => {
     const partner = hierarchyData.da.find((da) => da.id === partnerId);
     if (!partner) return;
 
@@ -280,18 +324,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
-  const handleAddDSM = (daId: number) => {
+  const handleAddDSM = (daId: string) => {
     if (!canAccessDA(daId)) return;
 
     const nom = window.prompt('Nom du DSM à ajouter');
     if (!nom?.trim()) return;
 
     setHierarchyData((tree) =>
-      addDSM(tree, daId, { id: Date.now(), nom: nom.trim(), pos: [] }),
+      addDSM(tree, daId, { id: String(Date.now()), nom: nom.trim(), pos: [] }),
     );
   };
 
-  const handleEditDSM = (dsmId: number) => {
+  const handleEditDSM = (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) => da.dsm.some((dsm) => dsm.id === dsmId));
     if (!parentDA || !canAccessDA(parentDA.id)) return;
 
@@ -312,7 +356,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
-  const handleDeleteDSM = (dsmId: number) => {
+  const handleDeleteDSM = (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) => da.dsm.some((dsm) => dsm.id === dsmId));
     if (!parentDA || !canAccessDA(parentDA.id)) return;
 
@@ -331,7 +375,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
-  const handleAddPOS = (dsmId: number) => {
+  const handleAddPOS = (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.id === dsmId),
     );
@@ -340,10 +384,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const nom = window.prompt('Nom du POS à ajouter');
     if (!nom?.trim()) return;
 
-    setHierarchyData((tree) => addPOS(tree, dsmId, { id: Date.now(), nom: nom.trim() }));
+    setHierarchyData((tree) => addPOS(tree, dsmId, { id: String(Date.now()), nom: nom.trim() }));
   };
 
-  const handleEditPOS = (posId: number) => {
+  const handleEditPOS = (posId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.pos.some((pos) => pos.id === posId)),
     );
@@ -368,7 +412,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
-  const handleDeletePOS = (posId: number) => {
+  const handleDeletePOS = (posId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.pos.some((pos) => pos.id === posId)),
     );
@@ -391,21 +435,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }));
   };
 
-  const handleMovePOS = (posId: number) => {
+  const handleMovePOS = (posId: string) => {
     const dsms = listDSM(hierarchyData);
     if (dsms.length === 0) return;
 
     const target = window.prompt(
       `ID du DSM de destination:\n${dsms.map((dsm) => `${dsm.id} - ${dsm.label}`).join('\n')}`,
     );
-    const targetDsmId = Number(target);
+    const targetDsmId = target?.trim();
     if (!targetDsmId || !dsms.some((dsm) => dsm.id === targetDsmId)) return;
 
     setHierarchyData((tree) => movePOS(tree, posId, targetDsmId));
   };
 
   const handleSubmitEntry = (payload: {
-    entityId: number;
+    entityId: string;
     date: string;
     stockJournalier: number;
     achat: number;
@@ -414,6 +458,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const month = Number(payload.date.slice(5, 7));
     const daysInMonth = new Date(year, month, 0).getDate();
     const stockSecurite = (dashboardData.kpi.objectif_mensuel / daysInMonth) * 3;
+
+    // Envoi réel au backend (l'entrée cible un POS précis).
+    apiService
+      .postSaisie({ id_pos: payload.entityId, date: payload.date, vente_jour: payload.achat })
+      .then(() => apiService.getDashboard('POS', payload.entityId))
+      .then((data) => setDashboardData(data))
+      .catch((err) => console.error("Échec de l'enregistrement de la saisie :", err));
 
     setRecords((prev) => {
       const monthKey = payload.date.slice(0, 7);
@@ -534,27 +585,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setAssignmentToEdit(null);
   };
 
-  // Removed automatic redirect for ADMIN users so they stay on Dashboard first.
-
   return (
     <div className={`flex min-h-screen font-sans ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      <Sidebar
-        hierarchyData={visibleHierarchy}
-        role={role}
-        onSelectEntity={handleSelectEntity}
-        onAddPartner={handleAddPartner}
-        onEditPartner={handleEditPartner}
-        onDeletePartner={handleDeletePartner}
-        onAddDSM={handleAddDSM}
-        onEditDSM={handleEditDSM}
-        onDeleteDSM={handleDeleteDSM}
-        onAddPOS={handleAddPOS}
-        onEditPOS={handleEditPOS}
-        onDeletePOS={handleDeletePOS}
-        onMovePOS={handleMovePOS}
-        selectedEntityId={dashboardData.entite_id}
-        isDark={isDark}
-      />
+      {loadingHierarchy ? (
+        <div className="flex w-72 items-center justify-center border-r border-slate-800/20 p-6 text-sm text-slate-400">
+          Chargement de la hiérarchie…
+        </div>
+      ) : (
+        <Sidebar
+          hierarchyData={visibleHierarchy}
+          role={role}
+          onSelectEntity={handleSelectEntity}
+          onAddPartner={handleAddPartner}
+          onEditPartner={handleEditPartner}
+          onDeletePartner={handleDeletePartner}
+          onAddDSM={handleAddDSM}
+          onEditDSM={handleEditDSM}
+          onDeleteDSM={handleDeleteDSM}
+          onAddPOS={handleAddPOS}
+          onEditPOS={handleEditPOS}
+          onDeletePOS={handleDeletePOS}
+          onMovePOS={handleMovePOS}
+          selectedEntityId={dashboardData.entite_id}
+          isDark={isDark}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className={`flex h-16 items-center justify-between border-b px-6 ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
@@ -626,19 +681,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             onEditAssignment={setAssignmentToEdit}
           />
 
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm">
-            <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-black text-white">! ALERTE</span>
-            <p className="flex-1 font-medium">
-              Master Color est sous surveillance aujourd&apos;hui. Ajoutez les DSM puis les POS pour détailler les alertes terrain.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/modifications')}
-              className="font-bold text-rose-700 underline underline-offset-2"
-            >
-              Voir détails →
-            </button>
-          </div>
+          {/* Bannière d'alerte dynamique */}
+          {dashboardData?.kpi?.statut_alerte && dashboardData.kpi.statut_alerte !== 'NORMAL' ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm">
+              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-black text-white">! ALERTE</span>
+              <p className="flex-1 font-medium">
+                {dashboardData.nom_entite ? `${dashboardData.nom_entite} est sous surveillance.` : 'Une entité est sous surveillance.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/modifications')}
+                className="font-bold text-rose-700 underline underline-offset-2"
+              >
+                Voir détails →
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm">
+              <p className="font-medium">
+                {dashboardData?.nom_entite 
+                  ? `Statut de ${dashboardData.nom_entite} : Normal` 
+                  : 'Sélectionnez une entité pour afficher les alertes.'}
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="panel-card group p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
@@ -703,7 +769,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
               </div>
             </div>
           </div>
-          <ConsumptionChart records={records} stockSecurite={stockSecurite} isDark={isDark} />
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+            <ConsumptionChart
+              records={records}
+              stockSecurite={stockSecurite}
+              isDark={isDark}
+            />
+
+            <ProgressIndicators
+              realizationRate={0}
+              weeklyAverageStock={0}
+            />
+          </div>
+
           <DailyTrackingTable
             records={records}
             canCreateEntry={canCreateEntry}
