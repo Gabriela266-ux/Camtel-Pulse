@@ -7,8 +7,8 @@ import { EntryModal } from '../components/dashboard/EntryModal';
 import { ForecastModal } from '../components/dashboard/ForecastModal';
 import { ObjectiveModal } from '../components/dashboard/ObjectiveModal';
 import { AssignmentModal } from '../components/dashboard/AssignmentModal';
-import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 import { apiService } from '../api/services';
+
 import type {
   CentreHierarchy,
   DailyRecord,
@@ -20,6 +20,7 @@ import type {
 } from '../types';
 import { useAuth } from '../auth/AuthContext';
 import { ConsumptionChart } from '../components/dashboard/ConsumptionChart';
+import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 
 interface DashboardPageProps {
   isDark: boolean;
@@ -221,7 +222,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
-  const [assignments, setAssignments] = useState<OperationalAssignment[]>([]);
+  const [assignments, setAssignments] = useState<OperationalAssignment[]>([
+    {
+      userId: 1,
+      nomComplet: 'M. Atangana',
+      partenaireId: '22222222-2222-4222-8222-222222222222',
+      partenaireNom: 'Glotelho',
+    },
+    {
+      userId: 2,
+      nomComplet: 'Mme Ngono',
+      partenaireId: '33333333-3333-4333-8333-333333333333',
+      partenaireNom: 'Master Color',
+    },
+  ]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
 
   const role = user?.role ?? 'OPERATIONNEL';
