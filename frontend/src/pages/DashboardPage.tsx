@@ -8,6 +8,7 @@ import { ForecastModal } from '../components/dashboard/ForecastModal';
 import { ObjectiveModal } from '../components/dashboard/ObjectiveModal';
 import { AssignmentModal } from '../components/dashboard/AssignmentModal';
 import { mockHierarchyData, mockDashboardInitial, mockDailyRecords } from '../data/mockHierarchy';
+import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 import type {
   CentreHierarchy,
   DailyRecord,
@@ -204,21 +205,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
-  const [assignments, setAssignments] = useState<OperationalAssignment[]>([
-    {
-      userId: 1,
-      nomComplet: 'M. Atangana',
-      partenaireId: 101,
-      partenaireNom: 'Glotelho',
-    },
-    {
-      userId: 2,
-      nomComplet: 'Mme Ngono',
-      partenaireId: 102,
-      partenaireNom: 'Master Color',
-    },
-  ]);
+  const [assignments, setAssignments] = useState<OperationalAssignment[]>([]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
+
   const role = user?.role ?? 'OPERATIONNEL';
   const canCreateEntry = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
   const canCreateForecast = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
@@ -534,8 +523,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setAssignmentToEdit(null);
   };
 
-  // Removed automatic redirect for ADMIN users so they stay on Dashboard first.
-
   return (
     <div className={`flex min-h-screen font-sans ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
       <Sidebar
@@ -626,19 +613,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             onEditAssignment={setAssignmentToEdit}
           />
 
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm">
-            <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-black text-white">! ALERTE</span>
-            <p className="flex-1 font-medium">
-              Master Color est sous surveillance aujourd&apos;hui. Ajoutez les DSM puis les POS pour détailler les alertes terrain.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/modifications')}
-              className="font-bold text-rose-700 underline underline-offset-2"
-            >
-              Voir détails →
-            </button>
-          </div>
+          {/* Bannière d'alerte dynamique */}
+          {dashboardData?.kpi?.statut_alerte && dashboardData.kpi.statut_alerte !== 'NORMAL' ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm">
+              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-black text-white">! ALERTE</span>
+              <p className="flex-1 font-medium">
+                {dashboardData.nom_entite ? `${dashboardData.nom_entite} est sous surveillance.` : 'Une entité est sous surveillance.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/modifications')}
+                className="font-bold text-rose-700 underline underline-offset-2"
+              >
+                Voir détails →
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm">
+              <p className="font-medium">
+                {dashboardData?.nom_entite 
+                  ? `Statut de ${dashboardData.nom_entite} : Normal` 
+                  : 'Sélectionnez une entité pour afficher les alertes.'}
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="panel-card group p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
@@ -703,7 +701,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
               </div>
             </div>
           </div>
-          <ConsumptionChart records={records} stockSecurite={stockSecurite} isDark={isDark} />
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+            <ConsumptionChart
+              records={records}
+              stockSecurite={stockSecurite}
+              isDark={isDark}
+            />
+
+            <ProgressIndicators
+              realizationRate={0}
+              weeklyAverageStock={0}
+            />
+          </div>
+
           <DailyTrackingTable
             records={records}
             canCreateEntry={canCreateEntry}

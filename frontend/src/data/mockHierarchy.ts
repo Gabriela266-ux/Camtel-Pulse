@@ -1,25 +1,12 @@
-import type { CentreHierarchy, DashboardData, DailyRecord } from '../types';
-
 export const mockHierarchyData: CentreHierarchy = {
   id: 1,
   nom: 'CPDSM 1',
-  da: [
-    {
-      id: 101,
-      nom: 'Glotelho (Master SIM 1)',
-      dsm: [],
-    },
-    {
-      id: 102,
-      nom: 'Master Color (Master SIM 2)',
-      dsm: [],
-    },
-  ],
+  da: [],
 };
 
 export const mockDashboardInitial: DashboardData = {
-  entite_id: 101,
-  nom_entite: 'Glotelho (Master SIM 1)',
+  entite_id: 0,
+  nom_entite: 'Aucune entité sélectionnée',
   kpi: {
     objectif_mensuel: 0,
     achat_cumule: 0,
