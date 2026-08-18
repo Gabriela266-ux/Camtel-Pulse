@@ -43,9 +43,15 @@ router.get('/records', async (req, res) => {
 
 router.post('/records', async (req, res) => {
   const { pos_id, date_vente, quantite_vendu, montant } = req.body;
-  
+
   try {
+    const pos = await db.Pos.findByPk(pos_id);
+    if (!pos) {
+      return res.status(404).json({ ok: false, message: 'POS introuvable' });
+    }
+
     const record = await db.VenteDsmAuPos.create({
+      dsm_id: pos.dsm_id,
       pos_id,
       utilisateur_id: req.user.id,
       date_vente,

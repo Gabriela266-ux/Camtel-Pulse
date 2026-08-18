@@ -16,10 +16,14 @@ async function startServer() {
     // Optionnel: sync models (déjà fait par migrations)
     // await sequelize.sync({ alter: false });
 
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
       console.log(`🚀 Camtel Pulse API listening on port ${port}`);
       console.log(`📊 Database: ${process.env.DB_STORAGE || 'camtel_pulse.db'}`);
     });
+
+    // Configure timeouts for large file uploads
+    server.setTimeout(300000); // 5 minutes
+    server.keepAliveTimeout = 65000; // 65 seconds
   } catch (error) {
     console.error('❌ Impossible de se connecter à la base de données :', error);
     process.exit(1);

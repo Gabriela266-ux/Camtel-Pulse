@@ -6,16 +6,15 @@ const { authenticate } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
-
 router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
-  
+
   if (!email || !password) {
     return res.status(400).json({ ok: false, message: 'Email et mot de passe requis' });
   }
 
   try {
-    const user = await db.Utilisateur.findOne({ 
+    const user = await db.Utilisateur.findOne({
       where: { email: email.toLowerCase() },
       include: [{ model: db.Role, as: 'role' }]
     });
@@ -30,13 +29,12 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ ok: false, message: 'Identifiants invalides' });
     }
 
+    // Normalise le rôle en snake_case minuscule pour les vérifications RBAC
+    // et l'affichage frontend (la table role stocke des libellés type 'Admin', 'Agent').
+    const role = user.role.libelle.toLowerCase().replace(/\s+/g, '_');
+
     const token = jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        role: user.role.libelle,
-        da_id: user.da_id
-      },
+      { sub: user.id, email: user.email, role, da_id: user.da_id },
       process.env.JWT_SECRET || 'camtel-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
@@ -48,12 +46,13 @@ router.post('/login', async (req, res) => {
         id: user.id,
         name: user.nom_complet,
         email: user.email,
-        role: user.role.libelle,
+        role,
         da_id: user.da_id,
         status: user.statut
       }
     });
   } catch (error) {
+    console.error('[AUTH] Error:', error.message);
     return res.status(500).json({ ok: false, message: 'Erreur serveur' });
   }
 });
