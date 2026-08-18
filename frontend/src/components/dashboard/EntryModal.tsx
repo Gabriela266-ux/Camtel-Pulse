@@ -6,7 +6,7 @@ interface EntryModalProps {
   hierarchyData: CentreHierarchy;
   onClose: () => void;
   onSubmit: (payload: {
-    entityId: number;
+    entityId: string;
     date: string;
     stockJournalier: number;
     achat: number;
@@ -48,7 +48,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   onSubmit,
 }) => {
   const entities = listWritableEntities(hierarchyData);
-  const [entityId, setEntityId] = useState(entities[0]?.id ?? 101);
+  const [entityId, setEntityId] = useState<string>(entities[0]?.id ?? '');
   const [date, setDate] = useState(defaultDate);
   const [stockJournalier, setStockJournalier] = useState('');
   const [achat, setAchat] = useState('');
@@ -98,7 +98,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
             </label>
             <select
               value={entityId}
-              onChange={(event) => setEntityId(Number(event.target.value))}
+              onChange={(event) => setEntityId(event.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
             >
               {entities.map((entity) => (

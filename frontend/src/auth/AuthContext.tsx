@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState } from 'react';
 import type { AppRole } from '../types';
 
 export interface User {
-  id: number;
+  id: string;
   nom_complet: string;
   email: string;
   role: AppRole;
-  partenaireId?: number;
+  partenaireId?: string;
 }
 
 interface AuthContextType {
