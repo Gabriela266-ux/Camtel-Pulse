@@ -10,6 +10,8 @@ interface DailyTrackingTableProps {
   canCreateForecast: boolean;
   onNewForecast: () => void;
   isDark?: boolean;
+  purchaseLabel?: string;
+  stockSecurite?: number;
 }
 
 const formatDate = (value: string) => {
@@ -28,15 +30,26 @@ const Delta: React.FC<{ value: number }> = ({ value }) => (
   </span>
 );
 
-function downloadExcel(records: DailyRecord[]) {
+const StatusDot: React.FC<{ status: 'NORMAL' | 'CRITIQUE' }> = ({ status }) => (
+  <span
+    className={`inline-block h-2.5 w-2.5 rounded-full ${
+      status === 'CRITIQUE' ? 'bg-rose-500' : 'bg-emerald-500'
+    }`}
+    title={status === 'CRITIQUE' ? 'Critique' : 'OK'}
+  />
+);
+
+function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecurite: number) {
   const rows = records.map((record) => ({
     Date: new Date(`${record.date}T00:00:00`),
-    'Calendrier d\'Achat (U)': record.prevision_ca,
-    'Achat (U)': record.achat,
     'Stock Journalier (U)': record.stock_journalier,
+    'Écart Stock Sécurité (U)': record.stock_journalier - stockSecurite,
+    'Statut Sécurité': record.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE',
+    'Calendrier d\'Achat (U)': record.prevision_ca,
+    [purchaseLabel]: record.achat,
     'Cumul achat (U)': record.cumul_achat,
-    'Écart jour': record.ecart_jour,
-    Statut: record.statut,
+    'Écart Calendrier d\'Achat (U)': record.ecart_jour,
+    'Statut': record.statut,
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -45,14 +58,16 @@ function downloadExcel(records: DailyRecord[]) {
     { wch: 14 },
     { wch: 20 },
     { wch: 22 },
-    { wch: 20 },
+    { wch: 18 },
+    { wch: 24 },
     { wch: 22 },
-    { wch: 14 },
+    { wch: 20 },
+    { wch: 26 },
     { wch: 14 },
   ];
 
   worksheet['!autofilter'] = {
-    ref: `A1:G${Math.max(rows.length + 1, 2)}`,
+    ref: `A1:I${Math.max(rows.length + 1, 2)}`,
   };
 
   for (let row = 2; row <= rows.length + 1; row += 1) {
@@ -78,17 +93,21 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
   canCreateForecast,
   onNewForecast,
   isDark = false,
+  purchaseLabel = 'Achat (U)',
+  stockSecurite = 0,
 }) => {
   const [downloadType, setDownloadType] = useState<'xlsx' | 'pdf' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const headers = [
     'Date',
-    'Calendrier d\'Achat (U)',
-    'Achat (U)',
     'Stock Journalier (U)',
+    'Écart Stock Sécurité (U)',
+    'Statut Sécurité',
+    'Calendrier d\'Achat (U)',
+    purchaseLabel,
     'Cumul achat (U)',
-    'Écart jour',
+    'Écart Calendrier d\'Achat (U)',
     'Statut',
   ];
 
@@ -97,9 +116,11 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
       [...headers],
       ...[...records].reverse().map((r) => [
         r.date,
+        String(r.stock_journalier),
+        String(r.stock_journalier - stockSecurite),
+        r.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE',
         String(r.prevision_ca),
         String(r.achat),
-        String(r.stock_journalier),
         String(r.cumul_achat),
         String(r.ecart_jour),
         r.statut,
@@ -149,7 +170,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
     try {
       setDownloadError(null);
       setDownloadType('xlsx');
-      await downloadExcel(records);
+      await downloadExcel(records, purchaseLabel, stockSecurite);
     } catch (error) {
       setDownloadError('Impossible de générer le fichier Excel. Réessayez.');
     } finally {
@@ -263,7 +284,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
             {[...records].reverse().map((record) => {
               const todayKey = new Date().toISOString().slice(0, 10);
               const isToday = record.date === todayKey;
-              const isNormal = record.statut === 'NORMAL';
+              const ecartStockSecurite = record.stock_journalier - stockSecurite;
 
               return (
                 <tr
@@ -286,6 +307,15 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                       </span>
                     )}
                   </td>
+                  <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {record.stock_journalier.toLocaleString('fr-FR')}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Delta value={ecartStockSecurite} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <StatusDot status={ecartStockSecurite >= 0 ? 'NORMAL' : 'CRITIQUE'} />
+                  </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
                     {record.prevision_ca}
                   </td>
@@ -293,25 +323,13 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                     {record.achat}
                   </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {record.stock_journalier.toLocaleString('fr-FR')}
-                  </td>
-                  <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                     {record.cumul_achat.toLocaleString('fr-FR')}
                   </td>
-
                   <td className="px-4 py-2.5">
                     <Delta value={record.ecart_jour} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
-                        isNormal
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-rose-200 bg-rose-50 text-rose-700'
-                      }`}
-                    >
-                      {isNormal ? 'NORMAL' : 'CRITIQUE'}
-                    </span>
+                    <StatusDot status={record.ecart_jour >= 0 ? 'NORMAL' : 'CRITIQUE'} />
                   </td>
                 </tr>
               );
