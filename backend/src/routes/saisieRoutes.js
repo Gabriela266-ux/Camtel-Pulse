@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../middlewares/authMiddleware');
 const { SaisieService } = require('../services/saisieService');
+const auditService = require('../services/auditService');
 
 const router = express.Router();
 const service = new SaisieService();
@@ -9,7 +10,7 @@ router.use(authenticate);
 
 router.post('/', async (req, res, next) => {
   try {
-    const { id_pos, date, vente_jour } = req.body || {};
+    const { id_pos, date, vente_jour, stock_journalier } = req.body || {};
 
     if (!id_pos || !date || vente_jour === undefined) {
       return res.status(400).json({
@@ -19,7 +20,8 @@ router.post('/', async (req, res, next) => {
     }
 
     const record = await service.buildRecord({ id_pos, date, vente_jour });
-    await service.create({ id_pos, date, vente_jour, utilisateur_id: req.user.id });
+    await service.create({ id_pos, date, vente_jour, stock_journalier, utilisateur_id: req.user.id });
+    await auditService.add({ utilisateur_id: req.user.id, action: 'saisie_creee', entite: 'pos', entite_id: id_pos, details: { date, vente_jour, stock_journalier } });
     return res.status(201).json({ ok: true, data: record });
   } catch (error) {
     console.error('[SAISIE ROUTE] Error:', error.message, error.stack);

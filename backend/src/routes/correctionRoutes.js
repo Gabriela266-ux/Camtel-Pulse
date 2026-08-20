@@ -1,20 +1,21 @@
 const express = require('express');
 const { authenticate } = require('../middlewares/authMiddleware');
 const correctionService = require('../services/correctionService');
+const { authorize } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 router.use(authenticate);
 
 router.get('/', async (req, res) => {
-  const data = await correctionService.listByUser(req.user.email);
+  const data = await correctionService.listByUser(req.user.id);
   res.json({ ok: true, data });
 });
 
 router.post('/', async (req, res, next) => {
   try {
     const payload = await correctionService.create({
-      userEmail: req.user.email,
+      utilisateur_id: req.user.id,
       ...req.body
     });
 
@@ -24,9 +25,9 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/validate', async (req, res, next) => {
+router.patch('/:id/validate', authorize('admin', 'chef_operationnel'), async (req, res, next) => {
   try {
-    const data = await correctionService.validate(req.params.id, req.user.email);
+    const data = await correctionService.validate(req.params.id, req.user.id);
     res.json({ ok: true, data });
   } catch (error) {
     next(error);

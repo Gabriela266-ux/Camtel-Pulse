@@ -16,6 +16,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       references: { model: 'da', key: 'id' }
     },
+    dsm_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'dsm', key: 'id' }
+    },
+    pos_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'pos', key: 'id' }
+    },
     zone_id: {
       type: DataTypes.STRING(36),
       allowNull: true,
@@ -66,6 +76,8 @@ module.exports = (sequelize, DataTypes) => {
   Utilisateur.associate = function associate(models) {
     Utilisateur.belongsTo(models.Role, { foreignKey: 'role_id', as: 'role' });
     Utilisateur.belongsTo(models.Da, { foreignKey: 'da_id', as: 'da' });
+    Utilisateur.belongsTo(models.Dsm, { foreignKey: 'dsm_id', as: 'dsm' });
+    Utilisateur.belongsTo(models.Pos, { foreignKey: 'pos_id', as: 'pos' });
     Utilisateur.belongsTo(models.Zone, { foreignKey: 'zone_id', as: 'zone' });
     Utilisateur.belongsTo(models.Utilisateur, { foreignKey: 'id_manager', as: 'manager' });
   };
