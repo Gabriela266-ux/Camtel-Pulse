@@ -395,6 +395,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const { kpi } = dashboardData;
   const stockSecurite = (kpi.objectif_mensuel / daysInCurrentMonthFor(referenceDate)) * 3;
 
+  // Agrégats réels du mois chargé (issues des relevés /records) pour les indicateurs de
+  // progression : pas de valeur en dur, tout est recalculé à partir des données backend.
+  const achatTotal = records.reduce((sum, record) => sum + (record.achat ?? 0), 0);
+  const objectifTotalCalendrierAchat = records.reduce(
+    (sum, record) => sum + (record.prevision_ca ?? 0),
+    0,
+  );
+
   const handleSaveForecasts = (
     posId: string,
     year: number,
@@ -639,8 +647,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             />
 
             <ProgressIndicators
-              realizationRate={0}
-              weeklyAverageStock={0}
+              achatTotal={achatTotal}
+              objectifMensuel={kpi.objectif_mensuel}
+              objectifTotalCalendrierAchat={objectifTotalCalendrierAchat}
             />
           </div>
 

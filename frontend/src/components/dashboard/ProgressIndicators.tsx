@@ -1,25 +1,18 @@
 interface ProgressIndicatorsProps {
-  realizationRate?: number;
-  weeklyAverageStock?: number;
+  achatTotal?: number;
+  objectifMensuel?: number;
+  objectifTotalCalendrierAchat?: number;
 }
 
-function ProgressRow({
-  title,
-  value,
-  suffix,
-}: {
-  title: string;
-  value: number;
-  suffix: string;
-}) {
-  const safeValue = Math.min(100, Math.max(0, value));
+function ProgressRow({ title, value }: { title: string; value: number }) {
+  const safeValue = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="text-sm font-bold text-slate-700">{title}</span>
         <span className="font-mono text-sm font-black text-sky-700">
-          {safeValue.toFixed(0)}{suffix}
+          {safeValue.toFixed(0)}%
         </span>
       </div>
 
@@ -39,30 +32,32 @@ function ProgressRow({
 }
 
 export function ProgressIndicators({
-  realizationRate = 0,
-  weeklyAverageStock = 0,
+  achatTotal = 0,
+  objectifMensuel = 0,
+  objectifTotalCalendrierAchat = 0,
 }: ProgressIndicatorsProps) {
+  // Barre 1 — progression vs Objectif mensuel : (AchatTotal / ObjectifMensuel) * 100
+  const objectifRate = objectifMensuel > 0 ? (achatTotal / objectifMensuel) * 100 : 0;
+
+  // Barre 2 — progression vs Objectif Total du Calendrier d'Achat :
+  // (AchatTotal / ObjectifTotalCalendrierAchat) * 100
+  const calendrierRate =
+    objectifTotalCalendrierAchat > 0
+      ? (achatTotal / objectifTotalCalendrierAchat) * 100
+      : 0;
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-6">
-        <h3 className="text-sm font-black text-slate-800">Indicateurs hebdomadaires</h3>
+        <h3 className="text-sm font-black text-slate-800">Taux de progression (Sal in)</h3>
         <p className="mt-1 text-xs text-slate-500">
-          Calculés à partir des données saisies.
+          Calculés à partir des données réelles du mois en cours.
         </p>
       </div>
 
       <div className="space-y-6">
-        <ProgressRow
-          title="Taux de réalisation (Sale In)"
-          value={realizationRate}
-          suffix="%"
-        />
-
-        <ProgressRow
-          title="Stock journalier moyen hebdomadaire"
-          value={weeklyAverageStock}
-          suffix="%"
-        />
+        <ProgressRow title="En fonction de l'Objectif" value={objectifRate} />
+        <ProgressRow title="En fonction du Calendrier d'Achat" value={calendrierRate} />
       </div>
     </section>
   );
