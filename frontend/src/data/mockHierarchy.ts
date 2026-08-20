@@ -1,11 +1,13 @@
+import type { CentreHierarchy, DashboardData, DailyRecord } from '../types';
+
 export const mockHierarchyData: CentreHierarchy = {
-  id: 1,
+  id: '1',
   nom: 'CPDSM 1',
   da: [],
 };
 
 export const mockDashboardInitial: DashboardData = {
-  entite_id: 0,
+  entite_id: '0',
   nom_entite: 'Aucune entité sélectionnée',
   kpi: {
     objectif_mensuel: 0,

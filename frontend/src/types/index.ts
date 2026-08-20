@@ -39,6 +39,8 @@ export interface KPICardsData {
   ecart_cumule: number;
   statut_alerte: 'NORMAL' | 'CRITIQUE';
   consommation: number;
+  stock_journalier_moyen_hebdo?: number;
+  semaine_label?: string;
 }
 
 export interface DashboardData {
@@ -60,7 +62,7 @@ export interface DailyRecord {
   date: string;
   prevision_ca: number;
   achat: number;
-  stock_journalier: number;
+  stock_journalier: number | null;
   cumul_achat: number;
   consommation: number | null;
   ecart_jour: number;

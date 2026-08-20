@@ -35,23 +35,26 @@ function computeCumulCalendrier(records: DailyRecord[]): Map<string, number> {
   return cumulMap;
 }
 
-const Delta: React.FC<{ value: number }> = ({ value }) => (
-  <span
-    className={`font-mono text-xs font-bold ${
-      value >= 0 ? 'text-emerald-600' : 'text-rose-600'
-    }`}
-  >
-    {value >= 0 ? '+' : ''}
-    {value.toLocaleString('fr-FR')}
-  </span>
-);
+const Delta: React.FC<{ value: number | null }> = ({ value }) =>
+  value === null ? (
+    <span className="font-mono text-xs font-bold text-slate-400">—</span>
+  ) : (
+    <span
+      className={`font-mono text-xs font-bold ${
+        value >= 0 ? 'text-emerald-600' : 'text-rose-600'
+      }`}
+    >
+      {value >= 0 ? '+' : ''}
+      {value.toLocaleString('fr-FR')}
+    </span>
+  );
 
-const StatusDot: React.FC<{ status: 'NORMAL' | 'CRITIQUE' }> = ({ status }) => (
+const StatusDot: React.FC<{ status: 'NORMAL' | 'CRITIQUE' | null }> = ({ status }) => (
   <span
     className={`inline-block h-2.5 w-2.5 rounded-full ${
-      status === 'CRITIQUE' ? 'bg-rose-500' : 'bg-emerald-500'
+      status === null ? 'bg-slate-300' : status === 'CRITIQUE' ? 'bg-rose-500' : 'bg-emerald-500'
     }`}
-    title={status === 'CRITIQUE' ? 'Critique' : 'OK'}
+    title={status === null ? 'Non saisi' : status === 'CRITIQUE' ? 'Critique' : 'OK'}
   />
 );
 
@@ -63,9 +66,9 @@ function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecur
 
     return {
       Date: new Date(`${record.date}T00:00:00`),
-      'Stock Journalier (U)': record.stock_journalier,
-      'Écart Stock Sécurité (U)': record.stock_journalier - stockSecurite,
-      'Statut Sécurité': record.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE',
+      'Stock Journalier (U)': record.stock_journalier ?? 'Non saisi',
+      'Écart Stock Sécurité (U)': record.stock_journalier !== null ? record.stock_journalier - stockSecurite : '',
+      'Statut Sécurité': record.stock_journalier !== null ? (record.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
       'Calendrier d\'Achat (U)': record.prevision_ca,
       'Cumul Calendrier d\'Achat (U)': cumulCalendrier,
       [purchaseLabel]: record.achat,
@@ -146,9 +149,9 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
         const ecartCalendrier = r.cumul_achat - cumulCalendrier;
         return [
           r.date,
-          String(r.stock_journalier),
-          String(r.stock_journalier - stockSecurite),
-          r.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE',
+          r.stock_journalier !== null ? String(r.stock_journalier) : 'Non saisi',
+          r.stock_journalier !== null ? String(r.stock_journalier - stockSecurite) : '—',
+          r.stock_journalier !== null ? (r.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
           String(r.prevision_ca),
           String(cumulCalendrier),
           String(r.achat),
@@ -249,7 +252,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
               onClick={onNewForecast}
               className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100"
             >
-              + Prévisions mensuelles
+              + Calendrier d'achat
             </button>
           )}
 
@@ -316,7 +319,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
             {[...records].reverse().map((record) => {
               const todayKey = new Date().toISOString().slice(0, 10);
               const isToday = record.date === todayKey;
-              const ecartStockSecurite = record.stock_journalier - stockSecurite;
+              const ecartStockSecurite = record.stock_journalier !== null ? record.stock_journalier - stockSecurite : null;
               const cumulCalendrier = cumulMap.get(record.date) ?? 0;
               const ecartCalendrier = record.cumul_achat - cumulCalendrier;
 
@@ -342,13 +345,15 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                     )}
                   </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {record.stock_journalier.toLocaleString('fr-FR')}
+                    {record.stock_journalier !== null ? record.stock_journalier.toLocaleString('fr-FR') : (
+                      <span className="text-slate-400">Non saisi</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <Delta value={ecartStockSecurite} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <StatusDot status={ecartStockSecurite >= 0 ? 'NORMAL' : 'CRITIQUE'} />
+                    <StatusDot status={ecartStockSecurite !== null ? (ecartStockSecurite >= 0 ? 'NORMAL' : 'CRITIQUE') : null} />
                   </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
                     {record.prevision_ca.toLocaleString('fr-FR')}

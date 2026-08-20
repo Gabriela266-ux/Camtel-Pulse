@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, AlertTriangle, CheckCircle2, Moon, SunMedium } from 'lucide-react';
+import { LogOut, Moon, SunMedium } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { DailyTrackingTable } from '../components/dashboard/DailyTrackingTable';
 import { EntryModal } from '../components/dashboard/EntryModal';
@@ -15,6 +15,7 @@ import type {
   DashboardData,
   DSMNode,
   EntitySelection,
+  EntityType,
   OperationalAssignment,
   POSNode,
 } from '../types';
@@ -74,6 +75,11 @@ function listDSM(tree: CentreHierarchy) {
   );
 }
 
+function daysInCurrentMonthFor(dateStr: string) {
+  const year = Number(dateStr.slice(0, 4));
+  const month = Number(dateStr.slice(5, 7));
+  return new Date(year, month, 0).getDate();
+}
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
@@ -95,6 +101,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
   const [hierarchyData, setHierarchyData] = useState<CentreHierarchy>(emptyHierarchy);
   const [dashboardData, setDashboardData] = useState<DashboardData>(emptyDashboard);
+  const [selectedEntityType, setSelectedEntityType] = useState<EntityType>('DA');
   const [records, setRecords] = useState<DailyRecord[]>([]);
   const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   const [referenceDate, setReferenceDate] = useState(new Date().toISOString().slice(0, 10));
@@ -132,11 +139,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         setHierarchyData(data);
         const firstDA = data.da[0];
         if (firstDA) {
+          setSelectedEntityType('DA');
           setDashboardData((prev) => ({ ...prev, entite_id: firstDA.id, nom_entite: firstDA.nom }));
           apiService
             .getDashboard('DA', firstDA.id)
             .then((d) => setDashboardData(d))
             .catch((err) => console.error('Impossible de charger les KPI initiaux :', err));
+          apiService
+            .getRecords('DA', firstDA.id)
+            .then((data) => setRecords(data as DailyRecord[]))
+            .catch((err) => console.error("Impossible de charger l'historique journalier :", err));
         }
       })
       .catch((err) => console.error('Impossible de charger la hiérarchie :', err))
@@ -154,6 +166,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   }, []);
 
   const handleSelectEntity = (entity: EntitySelection) => {
+    setSelectedEntityType(entity.type);
     setDashboardData((prev) => ({
       ...prev,
       entite_id: entity.id,
@@ -164,6 +177,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .getDashboard(entity.type, entity.id)
       .then((data) => setDashboardData(data))
       .catch((err) => console.error('Impossible de charger les KPI de cette entité :', err));
+
+    apiService
+      .getRecords(entity.type, entity.id)
+      .then((data) => setRecords(data as DailyRecord[]))
+      .catch((err) => console.error("Impossible de charger l'historique journalier :", err));
   };
 
   const handleAddPartner = () => {
@@ -344,111 +362,61 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     stockJournalier: number;
     achat: number;
   }) => {
-    const year = Number(payload.date.slice(0, 4));
-    const month = Number(payload.date.slice(5, 7));
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const stockSecurite = (dashboardData.kpi.objectif_mensuel / daysInMonth) * 3;
-
-    // Envoi réel au backend (l'entrée cible un POS précis).
+    // Envoi réel au backend : la saisie cible un POS précis, avec son stock
+    // journalier réel (persisté dans la table `stock`, plus jamais perdu).
     apiService
-      .postSaisie({ id_pos: payload.entityId, date: payload.date, vente_jour: payload.achat })
-      .then(() => apiService.getDashboard('POS', payload.entityId))
-      .then((data) => setDashboardData(data))
-      .catch((err) => console.error("Échec de l'enregistrement de la saisie :", err));
-
-    setRecords((prev) => {
-      const monthKey = payload.date.slice(0, 7);
-      const sorted = [...prev.filter((record) => record.date !== payload.date)].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      );
-
-      const updatedRecord: DailyRecord = {
+      .postSaisie({
+        id_pos: payload.entityId,
         date: payload.date,
-        prevision_ca: sorted.find((record) => record.date === payload.date)?.prevision_ca ?? 0,
-        achat: payload.achat,
+        vente_jour: payload.achat,
         stock_journalier: payload.stockJournalier,
-        cumul_achat: 0,
-        consommation: 0,
-        ecart_jour: 0,
-        ecart_cumule: 0,
-        statut: 'NORMAL',
-      };
+      })
+      .then(() => {
+        // On rafraîchit les KPI et l'historique de l'entité actuellement affichée
+        // (pas forcément le POS visé par la saisie, si l'utilisateur regarde un DA/DSM).
+        const currentType = selectedEntityType;
+        const currentId = dashboardData.entite_id;
 
-      sorted.push(updatedRecord);
-      sorted.sort((a, b) => a.date.localeCompare(b.date));
+        apiService
+          .getDashboard(currentType, currentId)
+          .then((data) => setDashboardData(data))
+          .catch((err) => console.error('Impossible de rafraîchir les KPI :', err));
 
-      const monthRecords = sorted.filter((record) => record.date.startsWith(monthKey));
-      let cumulAchat = 0;
-
-      const recalculated = monthRecords.map((record, index, monthList) => {
-        const nextRecord = monthList[index + 1];
-        cumulAchat += record.achat;
-        const consommation = record.stock_journalier + record.achat - (nextRecord?.stock_journalier ?? 0);
-        const ecartJour = record.stock_journalier - stockSecurite;
-
-        return {
-          ...record,
-          cumul_achat: cumulAchat,
-          consommation: Number.isFinite(consommation) ? consommation : 0,
-          ecart_jour: ecartJour,
-          statut: ecartJour >= 0 ? 'NORMAL' : 'CRITIQUE',
-        } as DailyRecord;
-      });
-
-      const recalculatedMap = new Map(recalculated.map((record) => [record.date, record]));
-
-      return sorted.map((record) =>
-        record.date.startsWith(monthKey) ? recalculatedMap.get(record.date) ?? record : record,
-      );
-    });
+        apiService
+          .getRecords(currentType, currentId)
+          .then((data) => setRecords(data as DailyRecord[]))
+          .catch((err) => console.error("Impossible de rafraîchir l'historique :", err));
+      })
+      .catch((err) => console.error("Échec de l'enregistrement de la saisie :", err));
 
     setEntryModalOpen(false);
   };
 
   const { kpi } = dashboardData;
-  const activeMonthKey = referenceDate.slice(0, 7);
-  const objectiveMonth = new Date(referenceDate).getMonth() + 1;
-  const objectiveYear = new Date(referenceDate).getFullYear();
-  const daysInCurrentMonth = new Date(objectiveYear, objectiveMonth, 0).getDate();
-  const stockSecurite = (kpi.objectif_mensuel / daysInCurrentMonth) * 3;
-  const consommationMensuelle = records
-    .filter((record) => record.date.startsWith(activeMonthKey) && record.consommation !== null)
-    .reduce((sum, record) => sum + (record.consommation ?? 0), 0);
+  const stockSecurite = (kpi.objectif_mensuel / daysInCurrentMonthFor(referenceDate)) * 3;
 
   const handleSaveForecasts = (
+    posId: string,
     year: number,
     month: number,
     forecasts: Record<string, number>,
   ) => {
-    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    setRecords((prev) => {
-      const nextRows: DailyRecord[] = [];
-      const monthRecords = prev.filter((record) => record.date.slice(0, 7) === monthKey);
-      const existingByDate = new Map(monthRecords.map((record) => [record.date, record]));
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const existing = existingByDate.get(date);
-        const dateKey = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-
-        nextRows.push({
-          date,
-          prevision_ca: forecasts[dateKey] ?? existing?.prevision_ca ?? 0,
-          achat: existing?.achat ?? 0,
-          stock_journalier: existing?.stock_journalier ?? 0,
-          cumul_achat: existing?.cumul_achat ?? 0,
-          consommation: existing?.consommation ?? 0,
-          ecart_jour: existing?.ecart_jour ?? 0,
-          ecart_cumule: existing?.ecart_cumule ?? 0,
-          statut: existing?.statut ?? 'NORMAL',
-        });
-      }
-
-      const otherRows = prev.filter((record) => record.date.slice(0, 7) !== monthKey);
-      return [...otherRows, ...nextRows].sort((a, b) => a.date.localeCompare(b.date));
+    // Conversion des clés jj/mm/aaaa (saisie utilisateur) vers aaaa-mm-jj (backend).
+    const isoForecasts: Record<string, number> = {};
+    Object.entries(forecasts).forEach(([dateKey, value]) => {
+      const [day, mon, yr] = dateKey.split('/');
+      isoForecasts[`${yr}-${mon}-${day}`] = value;
     });
+
+    apiService
+      .saveCalendrierAchat(posId, isoForecasts)
+      .then(() => {
+        const currentType = selectedEntityType;
+        const currentId = dashboardData.entite_id;
+        return apiService.getRecords(currentType, currentId, `${year}-${String(month).padStart(2, '0')}`);
+      })
+      .then((data) => setRecords(data as DailyRecord[]))
+      .catch((err) => console.error("Échec de l'enregistrement du calendrier d'achat :", err));
   };
 
   const monthLabel = new Date(referenceDate).toLocaleDateString('fr-FR', {
@@ -457,6 +425,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   });
 
   const handleSaveObjective = (value: number) => {
+    const currentType = selectedEntityType;
+    const currentId = dashboardData.entite_id;
+
+    // Mise à jour optimiste de l'affichage, puis persistance réelle en base.
     setDashboardData((prev) => ({
       ...prev,
       kpi: {
@@ -464,6 +436,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         objectif_mensuel: value,
       },
     }));
+
+    apiService
+      .updateObjective(currentType, currentId, value)
+      .then(() => apiService.getDashboard(currentType, currentId))
+      .then((data) => setDashboardData(data))
+      .catch((err) => console.error("Échec de l'enregistrement de l'objectif :", err));
   };
 
   const handleAssignmentChange = (updatedAssignment: OperationalAssignment) => {
@@ -636,29 +614,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             <div className="panel-card p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
               <div className="text-xs font-bold uppercase tracking-[0.18em] text-violet-500">Consommation</div>
               <div className="mt-3 text-2xl font-black text-violet-600">
-                {consommationMensuelle.toLocaleString('fr-FR')} U
+                {kpi.consommation.toLocaleString('fr-FR')} U
               </div>
             </div>
-              
-            <div className="panel-card flex items-center justify-between p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-500">Statut réseau</div>
-                <div
-                  className={`mt-3 flex items-center gap-1.5 text-lg font-black ${
-                    kpi.statut_alerte === 'CRITIQUE' ? 'text-rose-600' : 'text-emerald-600'
-                  }`}
-                >
-                  {kpi.statut_alerte === 'CRITIQUE' ? (
-                    <>
-                      <AlertTriangle className="h-5 w-5" /> Critique
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-5 w-5" /> Normal
-                    </>
-                  )}
-                </div>
+
+            <div className="panel-card p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-500">
+                Stock journalier moyen hebdo
               </div>
+              <div className="mt-3 text-2xl font-black text-emerald-600">
+                {(kpi.stock_journalier_moyen_hebdo ?? 0).toLocaleString('fr-FR')} U
+              </div>
+              {kpi.semaine_label && (
+                <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">{kpi.semaine_label}</div>
+              )}
             </div>
           </div>
 
@@ -682,6 +651,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             canCreateForecast={canCreateForecast}
             onNewForecast={() => setForecastModalOpen(true)}
             isDark={isDark}
+            stockSecurite={stockSecurite}
           />
         </main>
       </div>
@@ -705,8 +675,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
       <ForecastModal
         isOpen={forecastModalOpen}
+        hierarchyData={visibleHierarchy}
+        defaultPosId={selectedEntityType === 'POS' ? dashboardData.entite_id : undefined}
         onClose={() => setForecastModalOpen(false)}
         onSave={handleSaveForecasts}
+        onLoadExisting={(posId, year, month) => apiService.getCalendrierAchat(posId, year, month)}
         isDark={isDark}
       />
 
