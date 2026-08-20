@@ -3,7 +3,7 @@ const { authenticate } = require('../middlewares/authMiddleware');
 const calendarService = require('../services/calendarService');
 const alertesService = require('../services/alertesService');
 const auditService = require('../services/auditService');
-const { getEntityDashboard } = require('../services/entityDashboardService');
+const { getEntityDashboard, getDailyRecords } = require('../services/entityDashboardService');
 
 const router = express.Router();
 
@@ -24,6 +24,23 @@ router.get('/', async (req, res, next) => {
       return res.status(404).json({ ok: false, message: 'Entité introuvable' });
     }
 
+    return res.json({ ok: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Historique journalier réel utilisé par le tableau de suivi (DailyTrackingTable).
+// GET /api/dashboard/records?type=DA|DSM|POS|CENTRE&id=...&month=YYYY-MM (mois courant par défaut)
+router.get('/records', async (req, res, next) => {
+  try {
+    const { type, id, month } = req.query;
+
+    if (!type || !id) {
+      return res.status(400).json({ ok: false, message: 'Paramètres type et id requis' });
+    }
+
+    const data = await getDailyRecords(String(type).toUpperCase(), String(id), month);
     return res.json({ ok: true, data });
   } catch (error) {
     next(error);

@@ -6,17 +6,21 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.get('/:type', (req, res) => {
-  const { type } = req.params;
-  const { parentId } = req.query;
-  const data = objectifService.listByType(type, parentId || null);
-  res.json({ ok: true, data });
+router.get('/:type', async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    const { parentId } = req.query;
+    const data = await objectifService.listByType(type, parentId || null);
+    res.json({ ok: true, data });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.patch('/:type/:id', (req, res, next) => {
+router.patch('/:type/:id', async (req, res, next) => {
   try {
     const { type, id } = req.params;
-    const data = objectifService.update(type, id, req.body);
+    const data = await objectifService.update(type, id, req.body);
     res.json({ ok: true, data });
   } catch (error) {
     next(error);

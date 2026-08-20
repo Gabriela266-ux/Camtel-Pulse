@@ -61,7 +61,7 @@ class SaisieService {
   async create(payload) {
     const record = await this.buildRecord(payload);
 
-    return db.VenteDsmAuPos.create({
+    const vente = await db.VenteDsmAuPos.create({
       dsm_id: record.dsm_id,
       pos_id: record.id_pos,
       utilisateur_id: payload.utilisateur_id || null,
@@ -69,6 +69,24 @@ class SaisieService {
       quantite_vendu: record.vente_jour,
       montant: record.vente_jour
     });
+
+    // Le "Stock journalier (U)" saisi par l'opérationnel (EntryModal) est une valeur
+    // distincte de la vente du jour — table `stock` (quantite_credit), une ligne par
+    // POS et par jour. Upsert : une seule ligne par (pos_id, date_stock).
+    if (payload.stock_journalier !== undefined && payload.stock_journalier !== null) {
+      const [stockRow] = await db.Stock.findOrCreate({
+        where: { pos_id: record.id_pos, date_stock: record.date },
+        defaults: {
+          dsm_id: record.dsm_id,
+          utilisateur_id: payload.utilisateur_id || null,
+          quantite_credit: Number(payload.stock_journalier)
+        }
+      });
+
+      await stockRow.update({ quantite_credit: Number(payload.stock_journalier) });
+    }
+
+    return vente;
   }
 
   async listByEntity(posId = null) {
