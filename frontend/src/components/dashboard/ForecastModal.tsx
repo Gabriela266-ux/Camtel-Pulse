@@ -1,41 +1,75 @@
 import React, { useState, useEffect } from 'react';
+import type { CentreHierarchy } from '../../types';
 
 interface ForecastModalProps {
   isOpen: boolean;
+  hierarchyData: CentreHierarchy;
+  defaultPosId?: string;
   onClose: () => void;
-  onSave: (year: number, month: number, forecasts: Record<string, number>) => void;
+  onSave: (posId: string, year: number, month: number, forecasts: Record<string, number>) => void;
+  onLoadExisting?: (posId: string, year: number, month: number) => Promise<Record<string, number>>;
   isDark?: boolean;
+}
+
+function listPOS(data: CentreHierarchy) {
+  const entities: { id: string; path: string }[] = [];
+  for (const da of data.da) {
+    for (const dsm of da.dsm) {
+      for (const pos of dsm.pos) {
+        entities.push({ id: pos.id, path: `${data.nom} / ${da.nom} / ${dsm.nom} / ${pos.nom}` });
+      }
+    }
+  }
+  return entities;
 }
 
 export const ForecastModal: React.FC<ForecastModalProps> = ({
   isOpen,
+  hierarchyData,
+  defaultPosId,
   onClose,
   onSave,
+  onLoadExisting,
   isDark = false,
 }) => {
+  const posEntities = listPOS(hierarchyData);
+  const [posId, setPosId] = useState<string>(defaultPosId ?? posEntities[0]?.id ?? '');
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedMonth, setSelectedMonth] = useState<number>(8);
   const [forecasts, setForecasts] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (defaultPosId) setPosId(defaultPosId);
+  }, [defaultPosId]);
+
+  useEffect(() => {
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-    const nextForecasts: Record<string, number> = {};
 
-    for (let day = 1; day <= daysInMonth; day++) {
-      const formattedDay = String(day).padStart(2, '0');
-      const formattedMonth = String(selectedMonth).padStart(2, '0');
-      const dateKey = `${formattedDay}/${formattedMonth}/${selectedYear}`;
-      nextForecasts[dateKey] = forecasts[dateKey] ?? 0;
-    }
+    // Calendrier d'achat réel déjà saisi pour ce POS/mois (table calendrier_achat côté backend),
+    // pré-chargé pour ne pas écraser des valeurs existantes.
+    const load = async () => {
+      let existingByIso: Record<string, number> = {};
+      if (onLoadExisting && posId) {
+        try {
+          existingByIso = await onLoadExisting(posId, selectedYear, selectedMonth);
+        } catch (err) {
+          console.error('Impossible de charger le calendrier existant :', err);
+        }
+      }
 
-    setForecasts((prev) => {
-      const merged = { ...prev };
-      Object.keys(nextForecasts).forEach((key) => {
-        if (!(key in merged)) merged[key] = nextForecasts[key];
-      });
-      return merged;
-    });
-  }, [selectedYear, selectedMonth]);
+      const nextForecasts: Record<string, number> = {};
+      for (let day = 1; day <= daysInMonth; day++) {
+        const formattedDay = String(day).padStart(2, '0');
+        const formattedMonth = String(selectedMonth).padStart(2, '0');
+        const isoKey = `${selectedYear}-${formattedMonth}-${formattedDay}`;
+        const dateKey = `${formattedDay}/${formattedMonth}/${selectedYear}`;
+        nextForecasts[dateKey] = existingByIso[isoKey] ?? 0;
+      }
+      setForecasts(nextForecasts);
+    };
+
+    load();
+  }, [selectedYear, selectedMonth, posId]);
 
   if (!isOpen) return null;
 
@@ -46,7 +80,8 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(selectedYear, selectedMonth, forecasts);
+    if (!posId) return;
+    onSave(posId, selectedYear, selectedMonth, forecasts);
     onClose();
   };
 
@@ -62,7 +97,7 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
       <div className={`flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl shadow-xl ${panelClass}`}>
         <div className={`flex items-center justify-between border-b px-6 py-4 ${panelBorder}`}>
           <h2 className={`text-sm font-black uppercase tracking-wide ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
-            Prévisions mensuelles
+            Calendrier d'achat mensuel
           </h2>
           <button
             type="button"
@@ -74,6 +109,23 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto p-6">
+          <div>
+            <label className={`mb-1 block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Point de vente (POS)
+            </label>
+            <select
+              value={posId}
+              onChange={(e) => setPosId(e.target.value)}
+              className={`w-full rounded-lg border p-2 text-xs font-bold focus:outline-none ${fieldClass}`}
+            >
+              {posEntities.map((entity) => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.path}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={`mb-1 block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -144,7 +196,7 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
               type="submit"
               className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-violet-700"
             >
-              Enregistrer les prévisions
+              Enregistrer le calendrier d'achat
             </button>
           </div>
         </form>

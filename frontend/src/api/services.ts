@@ -112,8 +112,35 @@ export const apiService = {
     return request<DashboardData>(`/dashboard?type=${type}&id=${encodeURIComponent(id)}`);
   },
 
-  async postSaisie(payload: { id_pos: string; date: string; vente_jour: number }) {
+  async postSaisie(payload: { id_pos: string; date: string; vente_jour: number; stock_journalier?: number }) {
     return request('/saisies', { method: 'POST', body: JSON.stringify(payload) });
+  },
+
+  // Historique journalier réel (Suivi journalier) pour une entité et un mois donnés.
+  async getRecords(type: EntityType, id: string, month?: string): Promise<any[]> {
+    const monthParam = month ? `&month=${encodeURIComponent(month)}` : '';
+    return request(`/dashboard/records?type=${type}&id=${encodeURIComponent(id)}${monthParam}`);
+  },
+
+  // Persiste réellement l'objectif mensuel (DA : colonne objectif_mensuel ;
+  // DSM/POS : ligne du mois courant dans objectif_mensuel).
+  async updateObjective(type: EntityType, id: string, objectif_mensuel: number) {
+    return request(`/objectifs/${type.toLowerCase()}/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ objectif_mensuel }),
+    });
+  },
+
+  // Calendrier d'Achat (jargon Camtel pour "prévisions") : lecture et sauvegarde réelles.
+  async getCalendrierAchat(id_pos: string, year: number, month: number): Promise<Record<string, number>> {
+    return request(`/calendrier-achat?id_pos=${encodeURIComponent(id_pos)}&year=${year}&month=${month}`);
+  },
+
+  async saveCalendrierAchat(id_pos: string, forecasts: Record<string, number>) {
+    return request('/calendrier-achat', {
+      method: 'POST',
+      body: JSON.stringify({ id_pos, forecasts }),
+    });
   },
 
   async importCsv(csvContent: string): Promise<any> {

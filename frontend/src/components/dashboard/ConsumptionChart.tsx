@@ -50,7 +50,7 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
           <h3 className={`text-sm font-black ${titleClass}`}>
             📊 Ventes Journalières — {period} derniers jours
           </h3>
-          <p className="mt-1 text-xs text-slate-500">Comparaison entre prévisions et réalisé</p>
+          <p className="mt-1 text-xs text-slate-500">Comparaison entre calendrier d'achat et achat réalisé</p>
         </div>
 
         <div className={`flex items-center gap-1.5 rounded-xl p-2 ${chipClass}`}>
