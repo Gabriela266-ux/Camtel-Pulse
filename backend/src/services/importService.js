@@ -1,4 +1,4 @@
-const { clients, dsms, pos } = require('../data/seedData');
+const db = require('../models');
 
 class ImportService {
   parseCsvContent(content) {
@@ -26,47 +26,66 @@ class ImportService {
     return records;
   }
 
-  importFromCsv(content) {
+  async importFromCsv(content) {
     const rows = this.parseCsvContent(content);
+    const inserted = [];
+    const errors = [];
 
-    const inserted = rows.map((row) => {
-      const entity = {
-        id: `import-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        name: row.nom || row.name || 'Importé',
-        monthlyGoal: Number(row.objectif || row.objectif_mensuel || row.monthlygoal || 0),
-        centerId: row.centre_id || row.centerid || 'center-1',
-        clientId: row.client_id || row.clientid || null,
-        dsmId: row.dsm_id || row.dsmid || null,
-        source: 'csv-import'
-      };
+    // Process in batches of 500 to avoid memory overload
+    const BATCH_SIZE = 500;
+    
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const entities = batch.map(row => ({
+        nom: row.nom || row.name || 'Importé',
+        objectif_mensuel: Number(row.objectif || row.objectif_mensuel || 0),
+        centre_id: row.centre_id || null,
+        da_id: row.da_id || null,
+        dsm_id: row.dsm_id || null,
+        type: row.type || 'unknown'
+      }));
 
-      if (!entity.clientId && !entity.dsmId) {
-        clients.push({
-          id: entity.id,
-          centerId: entity.centerId,
-          name: entity.name,
-          monthlyGoal: entity.monthlyGoal
-        });
-      } else if (entity.dsmId) {
-        pos.push({
-          id: entity.id,
-          dsmId: entity.dsmId,
-          name: entity.name,
-          monthlyGoal: entity.monthlyGoal
-        });
-      } else {
-        dsms.push({
-          id: entity.id,
-          clientId: entity.clientId,
-          name: entity.name,
-          monthlyGoal: entity.monthlyGoal
-        });
+      try {
+        // Determine entity type and bulk create
+        const centreRows = entities.filter(e => e.type === 'centre' || (!e.da_id && !e.dsm_id && !e.centre_id));
+        const daRows = entities.filter(e => e.type === 'da' || (e.centre_id && !e.dsm_id && !e.da_id));
+        const dsmRows = entities.filter(e => e.type === 'dsm' || (e.da_id && !e.dsm_id));
+        const posRows = entities.filter(e => e.type === 'pos' || e.dsm_id);
+
+        if (centreRows.length > 0) {
+          const created = await db.Centre.bulkCreate(centreRows, { ignoreDuplicates: true });
+          inserted.push(...created);
+        }
+        if (daRows.length > 0) {
+          const created = await db.Da.bulkCreate(daRows, { ignoreDuplicates: true });
+          inserted.push(...created);
+        }
+        if (dsmRows.length > 0) {
+          const created = await db.Dsm.bulkCreate(dsmRows, { ignoreDuplicates: true });
+          inserted.push(...created);
+        }
+        if (posRows.length > 0) {
+          const created = await db.Pos.bulkCreate(posRows, { ignoreDuplicates: true });
+          inserted.push(...created);
+        }
+
+        console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted.length} total imported`);
+      } catch (error) {
+        console.error(`Batch error at row ${i}:`, error.message);
+        errors.push({ batch: Math.floor(i / BATCH_SIZE), error: error.message });
       }
+    }
 
-      return entity;
-    });
+    if (errors.length > 0) {
+      console.warn(`Import completed with ${errors.length} batch error(s)`);
+    }
 
-    return inserted;
+    return {
+      success: true,
+      totalImported: inserted.length,
+      errors,
+      records: inserted
+    };
   }
 }
 

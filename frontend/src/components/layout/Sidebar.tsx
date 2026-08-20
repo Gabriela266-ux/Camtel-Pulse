@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isCollapsed && (
             <div className="min-w-0 flex-1">
               <div className={`truncate text-sm font-bold leading-none ${titleClass}`}>
-                Camtel-Pulse
+                Financial Pulse
               </div>
               <div className={`mt-0.5 truncate text-xs ${secondaryClass}`}>CPDSM 1</div>
             </div>

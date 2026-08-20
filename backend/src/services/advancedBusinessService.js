@@ -1,4 +1,4 @@
-const { salesRecords, pos } = require('../data/seedData');
+const db = require('../models');
 
 function computeSecurityStock(objectifMensuel, daysCount = 31) {
   if (!objectifMensuel || Number(objectifMensuel) <= 0) return 0;
@@ -13,11 +13,13 @@ function generateMonthCalendar({ entityType = 'pos', entityId, objectiveMensuel 
   const rows = [];
 
   for (let day = 1; day <= daysInMonth; day += 1) {
-    const date = new Date(Number(year), monthIndex, day);
+    // Use UTC date to avoid timezone issues
+    const dateStr = `${String(year)}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const date = new Date(dateStr + 'T00:00:00Z');
     rows.push({
       entityType,
       entityId,
-      date: date.toISOString().slice(0, 10),
+      date: dateStr,
       jour: day,
       objectif_mensuel: Number(objectiveMensuel || 0),
       stock_securite: stockBase,
@@ -35,17 +37,22 @@ function applyCarryOver({ previousBalance = 0, currentStock = 0 }) {
   return Number(previousBalance || 0) + Number(currentStock || 0);
 }
 
-function computePerformanceSummary() {
-  const totalForecast = salesRecords.reduce((sum, record) => sum + Number(record.forecast || 0), 0);
-  const totalRealization = salesRecords.reduce((sum, record) => sum + Number(record.realization || 0), 0);
-  const totalFollowUp = salesRecords.reduce((sum, record) => sum + Number(record.followUp || 0), 0);
+async function computePerformanceSummary() {
+  const ventes = await db.VenteDsmAuPos.findAll();
+  const posCount = await db.Pos.count();
+  const totalMontant = ventes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
+  const totalForecast = ventes.reduce((sum, v) => sum + Number(v.forecast || v.montant || 0), 0);
+  const totalRealization = ventes.reduce((sum, v) => sum + Number(v.realization || v.montant || 0), 0);
+  const totalFollowUp = ventes.reduce((sum, v) => sum + Number(v.followUp || 0), 0);
 
   return {
+    totalMontant,
     totalForecast,
     totalRealization,
     totalFollowUp,
-    averageCoverage: totalRealization > 0 ? (totalFollowUp / totalRealization) * 100 : 0,
-    countPos: pos.length
+    totalQuantite: ventes.reduce((sum, v) => sum + Number(v.quantite_vendu || 0), 0),
+    posCount,
+    recordCount: ventes.length
   };
 }
 

@@ -6,15 +6,35 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.post('/csv', (req, res) => {
-  const { content } = req.body || {};
+const MAX_CSV_SIZE = 10 * 1024 * 1024; // 10MB
 
-  if (!content) {
-    return res.status(400).json({ ok: false, message: 'Le contenu CSV est obligatoire' });
+router.post('/csv', async (req, res, next) => {
+  try {
+    const { content } = req.body || {};
+
+    if (!content) {
+      return res.status(400).json({ ok: false, message: 'Le contenu CSV est obligatoire' });
+    }
+
+    // Validate size
+    if (content.length > MAX_CSV_SIZE) {
+      return res.status(413).json({ 
+        ok: false, 
+        message: `Fichier CSV dépasse 10MB (reçu: ${(content.length / 1024 / 1024).toFixed(2)}MB)` 
+      });
+    }
+
+    const data = await importService.importFromCsv(content);
+    return res.status(201).json({ 
+      ok: true, 
+      data: {
+        imported: data.totalImported || data.length,
+        records: data.records || data
+      }
+    });
+  } catch (error) {
+    return next(error);
   }
-
-  const data = importService.importFromCsv(content);
-  return res.status(201).json({ ok: true, data });
 });
 
 module.exports = router;

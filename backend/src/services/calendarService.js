@@ -1,4 +1,4 @@
-const { pos, dsms } = require('../data/seedData');
+const db = require('../models');
 
 class CalendarService {
   generateMonth({ entityType = 'pos', entityId, year = new Date().getFullYear(), month = new Date().getMonth() + 1, objective = 0 }) {
@@ -29,9 +29,15 @@ class CalendarService {
     return result;
   }
 
-  getCurrentMonthForEntity(entityId, entityType = 'pos') {
-    const entity = entityType === 'dsm' ? dsms.find((item) => item.id === entityId) : pos.find((item) => item.id === entityId);
-    const goal = entity ? Number(entity.monthlyGoal || 0) : 0;
+  async getCurrentMonthForEntity(entityId, entityType = 'pos') {
+    let entity;
+    if (entityType === 'dsm') {
+      entity = await db.Dsm.findByPk(entityId);
+    } else {
+      entity = await db.Pos.findByPk(entityId);
+    }
+
+    const goal = entity ? Number(entity.objectif_mensuel || 0) : 0;
     return this.generateMonth({ entityType, entityId, objective: goal });
   }
 }

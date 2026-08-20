@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Moon, SunMedium } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -19,9 +19,12 @@ import type {
   OperationalAssignment,
   POSNode,
 } from '../types';
+import type { AddPartnerPayload, Operationnel } from '../types';
 import { useAuth } from '../auth/AuthContext';
 import { ConsumptionChart } from '../components/dashboard/ConsumptionChart';
 import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
+import { RoleWorkspace } from '../components/dashboard/RoleWorkspace';
+import { AddPartnerModal } from '../components/dashboard/AddPartnerModal';
 
 interface DashboardPageProps {
   isDark: boolean;
@@ -78,131 +81,6 @@ function daysInCurrentMonthFor(dateStr: string) {
   return new Date(year, month, 0).getDate();
 }
 
-const RoleWorkspace: React.FC<{
-  role: string;
-  assignments?: OperationalAssignment[];
-  onEditAssignment?: (assignment: OperationalAssignment) => void;
-}> = ({ role, assignments = [], onEditAssignment }) => {
-  const configs = {
-    ADMIN: {
-      title: 'Console d’administration',
-      label: 'Administrateur',
-      description:
-        'Gestion utilisateurs, réseau, imports, objectifs, audit et actions techniques.',
-      scope: 'Accès complet CPDSM 1',
-      border: 'border-l-sky-600',
-      badge: 'bg-sky-100 text-sky-600',
-      cards: [
-        ['Utilisateurs', '18 actifs', 'Demandes à valider sous 72 h'],
-        ['Réseau POS', '2 actions', 'Réaffectation POS, fusion DSM'],
-        ['Audit', '143 traces', 'Imports, objectifs, accès sensibles'],
-      ],
-    },
-    MANAGER: {
-      title: 'Vue de pilotage manager',
-      label: 'Manager',
-      description: 'Restitution, alertes, graphiques et historique en lecture seule.',
-      scope: 'Lecture seule sur tous les indicateurs',
-      border: 'border-l-slate-600',
-      badge: 'bg-slate-100 text-slate-600',
-      cards: [
-        ['Restitution', 'Lecture seule', 'Aucune saisie ni modification autorisée'],
-        ['Alertes', '4 signaux', 'Vue consolidée pour décision'],
-        ['Exports', 'XLS / PDF', 'Reporting et réunion de pilotage'],
-      ],
-    },
-    CHEF_OPE: {
-      title: 'Suivi opérationnel du centre',
-      label: 'Chef opérationnel',
-      description:
-        'Supervision des DAs, affectation des opérationnels et validation des corrections.',
-      scope: 'CPDSM 1 - Glotelho et Master Color',
-      border: 'border-l-violet-600',
-      badge: 'bg-violet-100 text-violet-600',
-      cards: [
-        ['Corrections', '3 en attente', 'Validation Chef opérationnel sous 48 h'],
-        ['Opérationnels', '6 affectés', 'Glotelho et Master Color'],
-        ['Alertes terrain', '2 critiques', "POS à suivre aujourd’hui"],
-      ],
-    },
-    OPERATIONNEL: {
-      title: 'Saisie et suivi du périmètre affecté',
-      label: 'Opérationnel',
-      description:
-        'Accès limité au partenaire affecté, avec saisie du stock journalier et de l\'Achat (U).',
-      scope: 'Partenaire affecté - Glotelho',
-      border: 'border-l-emerald-600',
-      badge: 'bg-emerald-100 text-emerald-700',
-      cards: [
-        ['Périmètre', 'Glotelho', 'Saisie limitée au partenaire affecté'],
-        ['Achat', 'À saisir', 'Achat du jour et suivi de correction'],
-        ['Corrections', '2/5', 'Au-delà, demande validée par le chef'],
-      ],
-    },
-  };
-
-  const config = configs[role as keyof typeof configs] ?? configs.OPERATIONNEL;
-
-  return (
-    <section
-      className={`rounded-2xl border border-slate-200 border-l-4 bg-white p-5 shadow-sm ${config.border}`}
-    >
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-black text-slate-900">{config.title}</h2>
-
-            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${config.badge}`}>
-              {config.label}
-            </span>
-          </div>
-
-          <p className="mt-1 text-xs text-slate-500">{config.description}</p>
-        </div>
-
-        <span className="text-xs text-slate-400">{config.scope}</span>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-3">
-        {config.cards.map(([title, value, description]) => (
-          <article
-            key={title}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
-          >
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{title}</p>
-            <p className="mt-1 text-sm font-black text-slate-900">{value}</p>
-            <p className="mt-1 text-xs text-slate-500">{description}</p>
-          </article>
-        ))}
-      </div>
-
-      {role === 'CHEF_OPE' && (
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {assignments.map((operational) => (
-            <article
-              key={operational.userId}
-              className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3"
-            >
-              <div>
-                <p className="text-xs font-black text-slate-800">{operational.nomComplet}</p>
-                <p className="mt-1 text-xs text-slate-500">Gère le partenaire {operational.partenaireNom}</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onEditAssignment?.(operational)}
-                className="rounded-lg border border-violet-300 bg-violet-100 px-3 py-2 text-xs font-bold text-violet-600 hover:bg-violet-200"
-              >
-                Changer poste
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-};
-
 export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -230,21 +108,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
-  const [assignments, setAssignments] = useState<OperationalAssignment[]>([
-    {
-      userId: 1,
-      nomComplet: 'M. Atangana',
-      partenaireId: '22222222-2222-4222-8222-222222222222',
-      partenaireNom: 'Glotelho',
-    },
-    {
-      userId: 2,
-      nomComplet: 'Mme Ngono',
-      partenaireId: '33333333-3333-4333-8333-333333333333',
-      partenaireNom: 'Master Color',
-    },
-  ]);
+  const [assignments, setAssignments] = useState<OperationalAssignment[]>([]);
+  const [operationnels, setOperationnels] = useState<Operationnel[]>([]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
+  const [addPartnerModalOpen, setAddPartnerModalOpen] = useState(false);
 
   const role = user?.role ?? 'OPERATIONNEL';
   const canCreateEntry = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
@@ -263,7 +130,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
   const canAccessDA = (daId: string) => role !== 'OPERATIONNEL' || user?.partenaireId === daId;
 
-  // Charge la hiérarchie réelle depuis le backend au montage.
+  // Charge la hiérarchie, les affectations et les opérationnels réels depuis le backend.
   useEffect(() => {
     setLoadingHierarchy(true);
     apiService
@@ -286,6 +153,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       })
       .catch((err) => console.error('Impossible de charger la hiérarchie :', err))
       .finally(() => setLoadingHierarchy(false));
+
+    apiService
+      .getOperationnels()
+      .then((data) => setOperationnels(data))
+      .catch((err) => console.error('Impossible de charger les opérationnels :', err));
+
+    apiService
+      .getAffectations()
+      .then((data) => setAssignments(data))
+      .catch((err) => console.error('Impossible de charger les affectations :', err));
   }, []);
 
   const handleSelectEntity = (entity: EntitySelection) => {
@@ -308,13 +185,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   };
 
   const handleAddPartner = () => {
-    const nom = window.prompt('Nom du partenaire à ajouter');
-    if (!nom?.trim()) return;
+    setAddPartnerModalOpen(true);
+  };
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: [...tree.da, { id: String(Date.now()), nom: nom.trim(), dsm: [] }],
-    }));
+  const handleCreatePartner = (payload: AddPartnerPayload) => {
+    apiService
+      .creerPartenaire(payload)
+      .then(() => {
+        setAddPartnerModalOpen(false);
+        // Recharge la hiérarchie et les affectations pour refléter la donnée réelle.
+        apiService
+          .getHierarchie()
+          .then((data) => setHierarchyData(data))
+          .catch((err) => console.error('Impossible de recharger la hiérarchie :', err));
+        apiService
+          .getAffectations()
+          .then((data) => setAssignments(data))
+          .catch((err) => console.error('Impossible de recharger les affectations :', err));
+      })
+      .catch((err) => console.error('Échec de la création du partenaire :', err));
   };
 
   const handleEditPartner = (partnerId: string) => {
@@ -656,8 +545,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         <main className="space-y-6 overflow-y-auto p-6">
           <RoleWorkspace
             role={role}
+            user={user}
+            operationnels={operationnels}
             assignments={assignments}
-            onEditAssignment={setAssignmentToEdit}
+            partners={hierarchyData.da}
           />
 
           {/* Bannière d'alerte dynamique */}
@@ -800,6 +691,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
           onSubmit={handleAssignmentChange}
         />
       )}
+
+      <AddPartnerModal
+        isOpen={addPartnerModalOpen}
+        operationnels={operationnels}
+        onClose={() => setAddPartnerModalOpen(false)}
+        onSubmit={handleCreatePartner}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import type { DailyRecord } from '../../types';
@@ -18,6 +18,22 @@ const formatDate = (value: string) => {
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
 };
+
+// Cumul courant du calendrier d'achat = somme cumulée des prévisions,
+// remise à zéro au début de chaque mois.
+function computeCumulCalendrier(records: DailyRecord[]): Map<string, number> {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const runningByMonth: Record<string, number> = {};
+  const cumulMap = new Map<string, number>();
+
+  for (const record of sorted) {
+    const monthKey = record.date.slice(0, 7);
+    runningByMonth[monthKey] = (runningByMonth[monthKey] ?? 0) + (record.prevision_ca ?? 0);
+    cumulMap.set(record.date, runningByMonth[monthKey]);
+  }
+
+  return cumulMap;
+}
 
 const Delta: React.FC<{ value: number | null }> = ({ value }) =>
   value === null ? (
@@ -43,17 +59,24 @@ const StatusDot: React.FC<{ status: 'NORMAL' | 'CRITIQUE' | null }> = ({ status 
 );
 
 function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecurite: number) {
-  const rows = records.map((record) => ({
-    Date: new Date(`${record.date}T00:00:00`),
-    'Stock Journalier (U)': record.stock_journalier ?? 'Non saisi',
-    'Écart Stock Sécurité (U)': record.stock_journalier !== null ? record.stock_journalier - stockSecurite : '',
-    'Statut Sécurité': record.stock_journalier !== null ? (record.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
-    'Calendrier d\'Achat (U)': record.prevision_ca,
-    [purchaseLabel]: record.achat,
-    'Cumul achat (U)': record.cumul_achat,
-    'Écart Calendrier d\'Achat (U)': record.ecart_jour,
-    'Statut': record.statut,
-  }));
+  const cumulMap = computeCumulCalendrier(records);
+  const rows = records.map((record) => {
+    const cumulCalendrier = cumulMap.get(record.date) ?? 0;
+    const ecartCalendrier = record.cumul_achat - cumulCalendrier;
+
+    return {
+      Date: new Date(`${record.date}T00:00:00`),
+      'Stock Journalier (U)': record.stock_journalier ?? 'Non saisi',
+      'Écart Stock Sécurité (U)': record.stock_journalier !== null ? record.stock_journalier - stockSecurite : '',
+      'Statut Sécurité': record.stock_journalier !== null ? (record.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
+      'Calendrier d\'Achat (U)': record.prevision_ca,
+      'Cumul Calendrier d\'Achat (U)': cumulCalendrier,
+      [purchaseLabel]: record.achat,
+      'Cumul achat (U)': record.cumul_achat,
+      'Écart Calendrier d\'Achat (U)': ecartCalendrier,
+      'Statut': ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE',
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
 
@@ -63,6 +86,7 @@ function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecur
     { wch: 22 },
     { wch: 18 },
     { wch: 24 },
+    { wch: 26 },
     { wch: 22 },
     { wch: 20 },
     { wch: 26 },
@@ -70,7 +94,7 @@ function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecur
   ];
 
   worksheet['!autofilter'] = {
-    ref: `A1:I${Math.max(rows.length + 1, 2)}`,
+    ref: `A1:J${Math.max(rows.length + 1, 2)}`,
   };
 
   for (let row = 2; row <= rows.length + 1; row += 1) {
@@ -108,26 +132,34 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
     'Écart Stock Sécurité (U)',
     'Statut Sécurité',
     'Calendrier d\'Achat (U)',
+    'Cumul Calendrier d\'Achat (U)',
     purchaseLabel,
     'Cumul achat (U)',
     'Écart Calendrier d\'Achat (U)',
     'Statut',
   ];
 
+  const cumulMap = useMemo(() => computeCumulCalendrier(records), [records]);
+
   const openPrintWindow = () => {
     const tableRows = [
       [...headers],
-      ...[...records].reverse().map((r) => [
-        r.date,
-        r.stock_journalier !== null ? String(r.stock_journalier) : 'Non saisi',
-        r.stock_journalier !== null ? String(r.stock_journalier - stockSecurite) : '—',
-        r.stock_journalier !== null ? (r.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
-        String(r.prevision_ca),
-        String(r.achat),
-        String(r.cumul_achat),
-        String(r.ecart_jour),
-        r.statut,
-      ]),
+      ...[...records].reverse().map((r) => {
+        const cumulCalendrier = cumulMap.get(r.date) ?? 0;
+        const ecartCalendrier = r.cumul_achat - cumulCalendrier;
+        return [
+          r.date,
+          r.stock_journalier !== null ? String(r.stock_journalier) : 'Non saisi',
+          r.stock_journalier !== null ? String(r.stock_journalier - stockSecurite) : '—',
+          r.stock_journalier !== null ? (r.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
+          String(r.prevision_ca),
+          String(cumulCalendrier),
+          String(r.achat),
+          String(r.cumul_achat),
+          String(ecartCalendrier),
+          ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE',
+        ];
+      }),
     ];
 
     const html = `
@@ -288,6 +320,8 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
               const todayKey = new Date().toISOString().slice(0, 10);
               const isToday = record.date === todayKey;
               const ecartStockSecurite = record.stock_journalier !== null ? record.stock_journalier - stockSecurite : null;
+              const cumulCalendrier = cumulMap.get(record.date) ?? 0;
+              const ecartCalendrier = record.cumul_achat - cumulCalendrier;
 
               return (
                 <tr
@@ -322,19 +356,22 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                     <StatusDot status={ecartStockSecurite !== null ? (ecartStockSecurite >= 0 ? 'NORMAL' : 'CRITIQUE') : null} />
                   </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
-                    {record.prevision_ca}
+                    {record.prevision_ca.toLocaleString('fr-FR')}
+                  </td>
+                  <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
+                    {cumulCalendrier.toLocaleString('fr-FR')}
                   </td>
                   <td className={`px-4 py-2.5 font-mono font-bold ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
-                    {record.achat}
+                    {record.achat.toLocaleString('fr-FR')}
                   </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                     {record.cumul_achat.toLocaleString('fr-FR')}
                   </td>
                   <td className="px-4 py-2.5">
-                    <Delta value={record.ecart_jour} />
+                    <Delta value={ecartCalendrier} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <StatusDot status={record.ecart_jour >= 0 ? 'NORMAL' : 'CRITIQUE'} />
+                    <StatusDot status={ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE'} />
                   </td>
                 </tr>
               );

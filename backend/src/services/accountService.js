@@ -1,9 +1,12 @@
 const bcrypt = require('bcryptjs');
-const { users } = require('../data/seedData');
+const db = require('../models');
 
 class AccountService {
   async listPendingAccounts() {
-    return users.filter((user) => user.status === 'pending');
+    return await db.Utilisateur.findAll({
+      where: { statut: 'inactif' },
+      include: [{ model: db.Role, as: 'role' }]
+    });
   }
 
   async requestAccount(payload) {
@@ -12,32 +15,33 @@ class AccountService {
       throw new Error('Email requis');
     }
 
-    const existing = users.find((user) => user.email.toLowerCase() === email.toLowerCase());
+    const existing = await db.Utilisateur.findOne({ where: { email: email.toLowerCase() } });
     if (existing) {
       throw new Error('Compte déjà existant');
     }
 
-    const account = {
-      id: `user-${Date.now()}`,
-      name: payload.name || 'Nouvel utilisateur',
+    const account = await db.Utilisateur.create({
+      nom_complet: payload.name || 'Nouvel utilisateur',
       email,
-      role: payload.role || 'operational',
-      centerId: payload.centerId || 'center-1',
-      status: 'pending',
-      passwordHash: await bcrypt.hash(payload.password || 'Temp123!', 10)
-    };
+      telephone: payload.telephone || null,
+      mot_de_passe: await bcrypt.hash(payload.password || 'Temp123!', 10),
+      role_id: payload.role_id || null,
+      statut: 'inactif',
+      da_id: payload.da_id || null,
+      zone_id: payload.zone_id || null,
+      matricule: `MAT-${Date.now()}`
+    });
 
-    users.push(account);
     return account;
   }
 
   async approveAccount(userId) {
-    const user = users.find((item) => item.id === userId);
+    const user = await db.Utilisateur.findByPk(userId);
     if (!user) {
       throw new Error('Compte introuvable');
     }
 
-    user.status = 'active';
+    await user.update({ statut: 'actif' });
     return user;
   }
 }
