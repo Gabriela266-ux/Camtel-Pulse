@@ -1,33 +1,35 @@
 export interface POSNode {
-  id: number;
+  id: string;
   nom: string;
 }
 
 export interface DSMNode {
-  id: number;
+  id: string;
   nom: string;
   pos: POSNode[];
 }
 
 export interface DANode {
-  id: number;
+  id: string;
   nom: string;
   dsm: DSMNode[];
 }
 
 export interface CentreHierarchy {
-  id: number;
+  id: string;
   nom: string;
   da: DANode[];
 }
 
 export type AppRole = 'ADMIN' | 'MANAGER' | 'CHEF_OPE' | 'OPERATIONNEL';
 
+export type EntityType = 'CENTRE' | 'DA' | 'DSM' | 'POS';
+
 export type EntitySelection =
-  | { type: 'CENTRE'; id: number; nom: string }
-  | { type: 'DA'; id: number; nom: string }
-  | { type: 'DSM'; id: number; nom: string }
-  | { type: 'POS'; id: number; nom: string };
+  | { type: 'CENTRE'; id: string; nom: string }
+  | { type: 'DA'; id: string; nom: string }
+  | { type: 'DSM'; id: string; nom: string }
+  | { type: 'POS'; id: string; nom: string };
 
 export interface KPICardsData {
   objectif_mensuel: number;
@@ -37,10 +39,12 @@ export interface KPICardsData {
   ecart_cumule: number;
   statut_alerte: 'NORMAL' | 'CRITIQUE';
   consommation: number;
+  stock_journalier_moyen_hebdo?: number;
+  semaine_label?: string;
 }
 
 export interface DashboardData {
-  entite_id: number;
+  entite_id: string;
   nom_entite: string;
   kpi: KPICardsData;
 }
@@ -48,21 +52,36 @@ export interface DashboardData {
 export interface OperationalAssignment {
   userId: number;
   nomComplet: string;
-  partenaireId: number;
+  partenaireId: string;
   partenaireNom: string;
-  dsmId?: number;
-  posId?: number;
+  dsmId?: string;
+  posId?: string;
 }
 
 export interface DailyRecord {
   date: string;
   prevision_ca: number;
   achat: number;
-  stock_journalier: number;
+  stock_journalier: number | null;
   cumul_achat: number;
   consommation: number | null;
   ecart_jour: number;
   ecart_cumule: number;
   statut: 'NORMAL' | 'CRITIQUE';
 }
+export interface Operationnel {
+  id: string;
+  nom_complet: string;
+  email?: string;
+  role?: string;
+  partenaireId?: string;
+}
 
+export interface AddPartnerPayload {
+  nom: string;
+  masterSim?: string;
+  attribution: {
+    type: 'OPERATIONNEL' | 'CHEF';
+    userId?: string;
+  };
+}

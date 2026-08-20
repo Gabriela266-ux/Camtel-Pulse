@@ -14,9 +14,9 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [partenaireId, setPartenaireId] = useState<number>(assignment.partenaireId);
-  const [dsmId, setDsmId] = useState<number | undefined>(assignment.dsmId);
-  const [posId, setPosId] = useState<number | undefined>(assignment.posId);
+  const [partenaireId, setPartenaireId] = useState<string>(assignment.partenaireId);
+  const [dsmId, setDsmId] = useState<string | undefined>(assignment.dsmId);
+  const [posId, setPosId] = useState<string | undefined>(assignment.posId);
 
   const partner = useMemo(
     () => partners.find((item) => item.id === partenaireId) ?? partners[0],
@@ -75,7 +75,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <select
               value={partenaireId}
               onChange={(event) => {
-                const nextPartnerId = Number(event.target.value);
+                const nextPartnerId = event.target.value;
                 setPartenaireId(nextPartnerId);
                 const nextPartner = partners.find((item) => item.id === nextPartnerId);
                 if (nextPartner?.dsm.length) {
@@ -104,8 +104,8 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               <select
                 value={dsmId ?? ''}
                 onChange={(event) => {
-                  const nextDsmId = Number(event.target.value || 0);
-                  setDsmId(nextDsmId || undefined);
+                  const nextDsmId = event.target.value || undefined;
+                  setDsmId(nextDsmId);
                   const nextDsm = dsmOptions.find((item) => item.id === nextDsmId);
                   setPosId(nextDsm?.pos[0]?.id ?? undefined);
                 }}
@@ -128,7 +128,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               </label>
               <select
                 value={posId ?? ''}
-                onChange={(event) => setPosId(Number(event.target.value || 0) || undefined)}
+                onChange={(event) => setPosId(event.target.value || undefined)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
               >
                 <option value="">Non spécifié</option>

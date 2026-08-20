@@ -8,16 +8,16 @@ interface SidebarProps {
   role: string;
   onSelectEntity: (entity: EntitySelection) => void;
   onAddPartner: () => void;
-  onEditPartner: (partnerId: number) => void;
-  onDeletePartner: (partnerId: number) => void;
-  onAddDSM: (daId: number) => void;
-  onEditDSM: (dsmId: number) => void;
-  onDeleteDSM: (dsmId: number) => void;
-  onAddPOS: (dsmId: number) => void;
-  onEditPOS: (posId: number) => void;
-  onDeletePOS: (posId: number) => void;
-  onMovePOS: (posId: number) => void;
-  selectedEntityId?: number;
+  onEditPartner: (partnerId: string) => void;
+  onDeletePartner: (partnerId: string) => void;
+  onAddDSM: (daId: string) => void;
+  onEditDSM: (dsmId: string) => void;
+  onDeleteDSM: (dsmId: string) => void;
+  onAddPOS: (dsmId: string) => void;
+  onEditPOS: (posId: string) => void;
+  onDeletePOS: (posId: string) => void;
+  onMovePOS: (posId: string) => void;
+  selectedEntityId?: string;
   isDark?: boolean;
 }
 
@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isCollapsed && (
             <div className="min-w-0 flex-1">
               <div className={`truncate text-sm font-bold leading-none ${titleClass}`}>
-                Camtel-Pulse
+                Financial Pulse
               </div>
               <div className={`mt-0.5 truncate text-xs ${secondaryClass}`}>CPDSM 1</div>
             </div>

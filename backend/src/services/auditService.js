@@ -1,3 +1,5 @@
+const db = require('../models');
+
 const auditLogs = [
   {
     id: 'audit-1',
@@ -18,22 +20,29 @@ const auditLogs = [
 ];
 
 class AuditService {
-  list(entite = null) {
-    if (!entite) {
-      return auditLogs;
-    }
-
-    return auditLogs.filter((entry) => entry.entite === entite);
+  async list(entite = null) {
+    if (!db.AuditLog) return entite ? auditLogs.filter((entry) => entry.entite === entite) : auditLogs;
+    const where = entite ? { entite } : {};
+    return db.AuditLog.findAll({ where, order: [['created_at', 'DESC']] });
   }
 
-  add(entry) {
+  async add(entry) {
     const auditEntry = {
       id: `audit-${Date.now()}`,
       ...entry,
       date: entry.date || new Date().toISOString()
     };
-    auditLogs.push(auditEntry);
-    return auditEntry;
+    if (!db.AuditLog) {
+      auditLogs.push(auditEntry);
+      return auditEntry;
+    }
+    return db.AuditLog.create({
+      utilisateur_id: entry.utilisateur_id || null,
+      action: entry.action,
+      entite: entry.entite || null,
+      entite_id: entry.entite_id || null,
+      details: typeof entry.details === 'string' ? entry.details : JSON.stringify(entry.details || {})
+    });
   }
 }
 

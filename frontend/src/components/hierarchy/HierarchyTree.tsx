@@ -7,16 +7,16 @@ interface HierarchyTreeProps {
   role: string;
   onSelectEntity: (entity: EntitySelection) => void;
   onAddPartner: () => void;
-  onEditPartner: (partnerId: number) => void;
-  onDeletePartner: (partnerId: number) => void;
-  onAddDSM: (daId: number) => void;
-  onEditDSM: (dsmId: number) => void;
-  onDeleteDSM: (dsmId: number) => void;
-  onAddPOS: (dsmId: number) => void;
-  onEditPOS: (posId: number) => void;
-  onDeletePOS: (posId: number) => void;
-  onMovePOS: (posId: number) => void;
-  selectedEntityId?: number;
+  onEditPartner: (partnerId: string) => void;
+  onDeletePartner: (partnerId: string) => void;
+  onAddDSM: (daId: string) => void;
+  onEditDSM: (dsmId: string) => void;
+  onDeleteDSM: (dsmId: string) => void;
+  onAddPOS: (dsmId: string) => void;
+  onEditPOS: (posId: string) => void;
+  onDeletePOS: (posId: string) => void;
+  onMovePOS: (posId: string) => void;
+  selectedEntityId?: string;
   searchQuery?: string;
   isDark?: boolean;
 }
@@ -39,13 +39,13 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
   searchQuery = '',
   isDark = false,
 }) => {
-  const [openDA, setOpenDA] = useState<Record<number, boolean>>({ 101: true });
-  const [openDSM, setOpenDSM] = useState<Record<number, boolean>>({});
+  const [openDA, setOpenDA] = useState<Record<string, boolean>>({});
+  const [openDSM, setOpenDSM] = useState<Record<string, boolean>>({});
   const canManageNetwork = role === 'CHEF_OPE' || role === 'OPERATIONNEL';
   const canMovePOS = role === 'CHEF_OPE';
 
-  const toggleDA = (id: number) => setOpenDA((p) => ({ ...p, [id]: !p[id] }));
-  const toggleDSM = (id: number) => setOpenDSM((p) => ({ ...p, [id]: !p[id] }));
+  const toggleDA = (id: string) => setOpenDA((p) => ({ ...p, [id]: !p[id] }));
+  const toggleDSM = (id: string) => setOpenDSM((p) => ({ ...p, [id]: !p[id] }));
 
   const query = searchQuery.trim().toLocaleLowerCase('fr-FR');
 

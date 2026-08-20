@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import type { DailyRecord } from '../../types';
@@ -10,6 +10,8 @@ interface DailyTrackingTableProps {
   canCreateForecast: boolean;
   onNewForecast: () => void;
   isDark?: boolean;
+  purchaseLabel?: string;
+  stockSecurite?: number;
 }
 
 const formatDate = (value: string) => {
@@ -17,27 +19,64 @@ const formatDate = (value: string) => {
   return `${day}/${month}/${year}`;
 };
 
-const Delta: React.FC<{ value: number }> = ({ value }) => (
+// Cumul courant du calendrier d'achat = somme cumulée des prévisions,
+// remise à zéro au début de chaque mois.
+function computeCumulCalendrier(records: DailyRecord[]): Map<string, number> {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const runningByMonth: Record<string, number> = {};
+  const cumulMap = new Map<string, number>();
+
+  for (const record of sorted) {
+    const monthKey = record.date.slice(0, 7);
+    runningByMonth[monthKey] = (runningByMonth[monthKey] ?? 0) + (record.prevision_ca ?? 0);
+    cumulMap.set(record.date, runningByMonth[monthKey]);
+  }
+
+  return cumulMap;
+}
+
+const Delta: React.FC<{ value: number | null }> = ({ value }) =>
+  value === null ? (
+    <span className="font-mono text-xs font-bold text-slate-400">—</span>
+  ) : (
+    <span
+      className={`font-mono text-xs font-bold ${
+        value >= 0 ? 'text-emerald-600' : 'text-rose-600'
+      }`}
+    >
+      {value >= 0 ? '+' : ''}
+      {value.toLocaleString('fr-FR')}
+    </span>
+  );
+
+const StatusDot: React.FC<{ status: 'NORMAL' | 'CRITIQUE' | null }> = ({ status }) => (
   <span
-    className={`font-mono text-xs font-bold ${
-      value >= 0 ? 'text-emerald-600' : 'text-rose-600'
+    className={`inline-block h-2.5 w-2.5 rounded-full ${
+      status === null ? 'bg-slate-300' : status === 'CRITIQUE' ? 'bg-rose-500' : 'bg-emerald-500'
     }`}
-  >
-    {value >= 0 ? '+' : ''}
-    {value.toLocaleString('fr-FR')}
-  </span>
+    title={status === null ? 'Non saisi' : status === 'CRITIQUE' ? 'Critique' : 'OK'}
+  />
 );
 
-function downloadExcel(records: DailyRecord[]) {
-  const rows = records.map((record) => ({
-    Date: new Date(`${record.date}T00:00:00`),
-    'Calendrier d\'Achat (U)': record.prevision_ca,
-    'Achat (U)': record.achat,
-    'Stock Journalier (U)': record.stock_journalier,
-    'Cumul achat (U)': record.cumul_achat,
-    'Écart jour': record.ecart_jour,
-    Statut: record.statut,
-  }));
+function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecurite: number) {
+  const cumulMap = computeCumulCalendrier(records);
+  const rows = records.map((record) => {
+    const cumulCalendrier = cumulMap.get(record.date) ?? 0;
+    const ecartCalendrier = record.cumul_achat - cumulCalendrier;
+
+    return {
+      Date: new Date(`${record.date}T00:00:00`),
+      'Stock Journalier (U)': record.stock_journalier ?? 'Non saisi',
+      'Écart Stock Sécurité (U)': record.stock_journalier !== null ? record.stock_journalier - stockSecurite : '',
+      'Statut Sécurité': record.stock_journalier !== null ? (record.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
+      'Calendrier d\'Achat (U)': record.prevision_ca,
+      'Cumul Calendrier d\'Achat (U)': cumulCalendrier,
+      [purchaseLabel]: record.achat,
+      'Cumul achat (U)': record.cumul_achat,
+      'Écart Calendrier d\'Achat (U)': ecartCalendrier,
+      'Statut': ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE',
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
 
@@ -45,14 +84,17 @@ function downloadExcel(records: DailyRecord[]) {
     { wch: 14 },
     { wch: 20 },
     { wch: 22 },
-    { wch: 20 },
+    { wch: 18 },
+    { wch: 24 },
+    { wch: 26 },
     { wch: 22 },
-    { wch: 14 },
+    { wch: 20 },
+    { wch: 26 },
     { wch: 14 },
   ];
 
   worksheet['!autofilter'] = {
-    ref: `A1:G${Math.max(rows.length + 1, 2)}`,
+    ref: `A1:J${Math.max(rows.length + 1, 2)}`,
   };
 
   for (let row = 2; row <= rows.length + 1; row += 1) {
@@ -78,32 +120,46 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
   canCreateForecast,
   onNewForecast,
   isDark = false,
+  purchaseLabel = 'Achat (U)',
+  stockSecurite = 0,
 }) => {
   const [downloadType, setDownloadType] = useState<'xlsx' | 'pdf' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const headers = [
     'Date',
-    'Calendrier d\'Achat (U)',
-    'Achat (U)',
     'Stock Journalier (U)',
+    'Écart Stock Sécurité (U)',
+    'Statut Sécurité',
+    'Calendrier d\'Achat (U)',
+    'Cumul Calendrier d\'Achat (U)',
+    purchaseLabel,
     'Cumul achat (U)',
-    'Écart jour',
+    'Écart Calendrier d\'Achat (U)',
     'Statut',
   ];
+
+  const cumulMap = useMemo(() => computeCumulCalendrier(records), [records]);
 
   const openPrintWindow = () => {
     const tableRows = [
       [...headers],
-      ...[...records].reverse().map((r) => [
-        r.date,
-        String(r.prevision_ca),
-        String(r.achat),
-        String(r.stock_journalier),
-        String(r.cumul_achat),
-        String(r.ecart_jour),
-        r.statut,
-      ]),
+      ...[...records].reverse().map((r) => {
+        const cumulCalendrier = cumulMap.get(r.date) ?? 0;
+        const ecartCalendrier = r.cumul_achat - cumulCalendrier;
+        return [
+          r.date,
+          r.stock_journalier !== null ? String(r.stock_journalier) : 'Non saisi',
+          r.stock_journalier !== null ? String(r.stock_journalier - stockSecurite) : '—',
+          r.stock_journalier !== null ? (r.stock_journalier >= stockSecurite ? 'NORMAL' : 'CRITIQUE') : 'N/A',
+          String(r.prevision_ca),
+          String(cumulCalendrier),
+          String(r.achat),
+          String(r.cumul_achat),
+          String(ecartCalendrier),
+          ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE',
+        ];
+      }),
     ];
 
     const html = `
@@ -149,7 +205,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
     try {
       setDownloadError(null);
       setDownloadType('xlsx');
-      await downloadExcel(records);
+      await downloadExcel(records, purchaseLabel, stockSecurite);
     } catch (error) {
       setDownloadError('Impossible de générer le fichier Excel. Réessayez.');
     } finally {
@@ -196,7 +252,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
               onClick={onNewForecast}
               className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100"
             >
-              + Prévisions mensuelles
+              + Calendrier d'achat
             </button>
           )}
 
@@ -263,7 +319,9 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
             {[...records].reverse().map((record) => {
               const todayKey = new Date().toISOString().slice(0, 10);
               const isToday = record.date === todayKey;
-              const isNormal = record.statut === 'NORMAL';
+              const ecartStockSecurite = record.stock_journalier !== null ? record.stock_journalier - stockSecurite : null;
+              const cumulCalendrier = cumulMap.get(record.date) ?? 0;
+              const ecartCalendrier = record.cumul_achat - cumulCalendrier;
 
               return (
                 <tr
@@ -286,32 +344,34 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                       </span>
                     )}
                   </td>
+                  <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {record.stock_journalier !== null ? record.stock_journalier.toLocaleString('fr-FR') : (
+                      <span className="text-slate-400">Non saisi</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Delta value={ecartStockSecurite} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <StatusDot status={ecartStockSecurite !== null ? (ecartStockSecurite >= 0 ? 'NORMAL' : 'CRITIQUE') : null} />
+                  </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
-                    {record.prevision_ca}
+                    {record.prevision_ca.toLocaleString('fr-FR')}
+                  </td>
+                  <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
+                    {cumulCalendrier.toLocaleString('fr-FR')}
                   </td>
                   <td className={`px-4 py-2.5 font-mono font-bold ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
-                    {record.achat}
-                  </td>
-                  <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {record.stock_journalier.toLocaleString('fr-FR')}
+                    {record.achat.toLocaleString('fr-FR')}
                   </td>
                   <td className={`px-4 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                     {record.cumul_achat.toLocaleString('fr-FR')}
                   </td>
-
                   <td className="px-4 py-2.5">
-                    <Delta value={record.ecart_jour} />
+                    <Delta value={ecartCalendrier} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
-                        isNormal
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-rose-200 bg-rose-50 text-rose-700'
-                      }`}
-                    >
-                      {isNormal ? 'NORMAL' : 'CRITIQUE'}
-                    </span>
+                    <StatusDot status={ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE'} />
                   </td>
                 </tr>
               );
