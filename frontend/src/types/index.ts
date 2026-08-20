@@ -67,4 +67,19 @@ export interface DailyRecord {
   ecart_cumule: number;
   statut: 'NORMAL' | 'CRITIQUE';
 }
+export interface Operationnel {
+  id: string;
+  nom_complet: string;
+  email?: string;
+  role?: string;
+  partenaireId?: string;
+}
 
+export interface AddPartnerPayload {
+  nom: string;
+  masterSim?: string;
+  attribution: {
+    type: 'OPERATIONNEL' | 'CHEF';
+    userId?: string;
+  };
+}

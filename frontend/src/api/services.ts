@@ -1,4 +1,5 @@
 import type { CentreHierarchy, DashboardData, EntityType } from '../types';
+import type { AddPartnerPayload, OperationalAssignment, Operationnel } from '../types';
 import type { User } from '../auth/AuthContext';
 
 const API_TIMEOUT = 30000;
@@ -123,5 +124,21 @@ export const apiService = {
       true,
       60000,
     );
+  },
+
+  // --- Opérationnels & affectations (à implémenter côté backend) ---
+  async getOperationnels(): Promise<Operationnel[]> {
+    return request<Operationnel[]>('/operationnels');
+  },
+
+  async getAffectations(): Promise<OperationalAssignment[]> {
+    return request<OperationalAssignment[]>('/affectations');
+  },
+
+  async creerPartenaire(payload: AddPartnerPayload): Promise<{ id: string; nom: string }> {
+    return request<{ id: string; nom: string }>('/partenaires', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 };
