@@ -69,16 +69,26 @@ class SaisieService {
       montant: record.vente_jour
     });
 
-    const pos = await db.Pos.findByPk(record.id_pos, { include: [{ model: db.Dsm, as: 'dsm' }] });
-    if (db.Stock) {
-      await db.Stock.create({
-        dsm_id: record.dsm_id,
-        pos_id: record.id_pos,
-        utilisateur_id: payload.utilisateur_id || null,
-        date_stock: record.date,
-        quantite_credit: Number(payload.stock_journalier || 0)
+    // Le "Stock journalier (U)" saisi par l'opérationnel (EntryModal) est une valeur
+    // distincte de la vente du jour — table `stock` (quantite_credit), une ligne par
+    // POS et par jour. Upsert : une seule ligne par (pos_id, date_stock), pour éviter
+    // les doublons si l'opérationnel corrige une saisie du même jour.
+    if (payload.stock_journalier !== undefined && payload.stock_journalier !== null) {
+      const [stockRow] = await db.Stock.findOrCreate({
+        where: { pos_id: record.id_pos, date_stock: record.date },
+        defaults: {
+          dsm_id: record.dsm_id,
+          utilisateur_id: payload.utilisateur_id || null,
+          quantite_credit: Number(payload.stock_journalier)
+        }
       });
+
+      await stockRow.update({ quantite_credit: Number(payload.stock_journalier) });
     }
+
+    // Trace complémentaire au niveau du DA (table achat_journaliere), utilisée pour
+    // le reporting côté partenaire — n'entre pas en conflit avec le suivi par POS.
+    const pos = await db.Pos.findByPk(record.id_pos, { include: [{ model: db.Dsm, as: 'dsm' }] });
     if (db.AchatJournaliere && pos?.dsm?.da_id) {
       await db.AchatJournaliere.create({
         da_id: pos.dsm.da_id,
@@ -87,6 +97,7 @@ class SaisieService {
         montant_achat: record.vente_jour
       });
     }
+
     return vente;
   }
 

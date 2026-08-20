@@ -17,6 +17,7 @@ const objectifRoutes = require('./routes/objectifRoutes');
 const importRoutes = require('./routes/importRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const advancedRoutes = require('./routes/advancedRoutes');
+const calendrierAchatRoutes = require('./routes/calendrierAchatRoutes');
 const previsionRoutes = require('./routes/previsionRoutes');
 
 dotenv.config();
@@ -62,6 +63,7 @@ function createApp() {
   app.use('/api/import', importRoutes);
   app.use('/api/accounts', accountRoutes);
   app.use('/api/advanced', advancedRoutes);
+  app.use('/api/calendrier-achat', calendrierAchatRoutes);
   app.use('/api/previsions', previsionRoutes);
 
   app.use(errorHandler);
