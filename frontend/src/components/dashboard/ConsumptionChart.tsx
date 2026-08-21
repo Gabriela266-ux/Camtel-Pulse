@@ -26,8 +26,17 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
 
   const visibleRecords = records.slice(-period);
 
+  // Achat cumulé réel sur la période sélectionnée (somme des achats enregistrés).
+  const totalAchatPeriod = visibleRecords.reduce(
+    (sum, record) => sum + (record.achat ?? 0),
+    0,
+  );
+
   const chartData = visibleRecords.map((record) => ({
     date: record.date.split('-')[2],
+    // Consommation (n) = Stock jour (n-1) + Réalisation jour (n-1) − Stock jour (n).
+    // L'endpoint backend (/dashboard/records) renvoie déjà ce calcul réel (champ `consommation`) ;
+    // on l'utilise tel quel, aucune valeur factice n'est injectée.
     consommation: record.consommation ?? 0,
     stockSecurite,
   }));
@@ -48,9 +57,11 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className={`text-sm font-black ${titleClass}`}>
-            📊 Ventes Journalières — {period} derniers jours
+            📊 Consommation — {period} derniers jours
           </h3>
-          <p className="mt-1 text-xs text-slate-500">Comparaison entre calendrier d'achat et achat réalisé</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Consommation = Stock j−1 + Achat j−1 − Stock j (données réelles des relevés)
+          </p>
         </div>
 
         <div className={`flex items-center gap-1.5 rounded-xl p-2 ${chipClass}`}>
@@ -104,6 +115,15 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
             <Bar dataKey="stockSecurite" name="Stock de sécurité" fill="#f59e0b" radius={[6, 6, 0, 0]} opacity={0.35} />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-xs ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+        <span className={isDark ? 'text-slate-300' : 'text-slate-500'}>
+          Achat cumulé · {period} derniers jours
+        </span>
+        <span className={`font-mono font-black ${isDark ? 'text-sky-300' : 'text-sky-600'}`}>
+          {totalAchatPeriod.toLocaleString('fr-FR')} U
+        </span>
       </div>
     </section>
   );
