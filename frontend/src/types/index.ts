@@ -15,7 +15,7 @@ export interface DANode {
   dsm: DSMNode[];
 }
 
-export interface CentreHierarchy {
+export interface DAHierarchy {
   id: string;
   nom: string;
   da: DANode[];
@@ -23,10 +23,9 @@ export interface CentreHierarchy {
 
 export type AppRole = 'ADMIN' | 'MANAGER' | 'CHEF_OPE' | 'OPERATIONNEL';
 
-export type EntityType = 'CENTRE' | 'DA' | 'DSM' | 'POS';
+export type EntityType = 'DA' | 'DSM' | 'POS';
 
 export type EntitySelection =
-  | { type: 'CENTRE'; id: string; nom: string }
   | { type: 'DA'; id: string; nom: string }
   | { type: 'DSM'; id: string; nom: string }
   | { type: 'POS'; id: string; nom: string };

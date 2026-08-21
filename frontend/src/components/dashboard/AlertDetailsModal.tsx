@@ -1,14 +1,12 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import type { DANode, DailyRecord, OperationalAssignment, Operationnel, AppRole } from '../../types';
+import type { DailyRecord, OperationalAssignment, AppRole } from '../../types';
 import type { User } from '../../auth/AuthContext';
 
 interface AlertDetailsModalProps {
   user: User | null;
   records: DailyRecord[];
   assignments: OperationalAssignment[];
-  _operationnels: Operationnel[];
-  _partners: DANode[];
   entityName: string;
   entityId?: string;
   isDark?: boolean;
@@ -27,13 +25,10 @@ const formatDate = (value: string) => {
   return `${day}/${month}/${year}`;
 };
 
-
 export const AlertDetailsModal: React.FC<AlertDetailsModalProps> = ({
   user,
   records = [],
   assignments = [],
-  _operationnels = [],
-  _partners = [],
   entityName,
   entityId,
   isDark = false,

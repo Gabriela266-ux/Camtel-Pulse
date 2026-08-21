@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Building2, Store, Network, Plus, MoveRight } from 'lucide-react';
-import type { CentreHierarchy, EntitySelection } from '../../types';
+import type { DAHierarchy, EntitySelection } from '../../types';
 
 interface HierarchyTreeProps {
-  data: CentreHierarchy;
+  data: DAHierarchy;
   role: string;
   onSelectEntity: (entity: EntitySelection) => void;
   onAddPartner: () => void;
@@ -293,3 +293,4 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
     </div>
   );
 };
+

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Store, Search, X } from 'lucide-react';
 import { HierarchyTree } from '../hierarchy/HierarchyTree';
-import type { CentreHierarchy, EntitySelection } from '../../types';
+import type { DAHierarchy, EntitySelection } from '../../types';
 
 interface SidebarProps {
-  hierarchyData: CentreHierarchy;
+  hierarchyData: DAHierarchy;
   role: string;
   onSelectEntity: (entity: EntitySelection) => void;
   onAddPartner: () => void;
@@ -182,3 +182,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
+

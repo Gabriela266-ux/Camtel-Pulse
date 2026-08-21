@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import type { CentreHierarchy } from '../../types';
+import type { DAHierarchy } from '../../types';
 
 interface ForecastModalProps {
   isOpen: boolean;
-  hierarchyData: CentreHierarchy;
+  hierarchyData: DAHierarchy;
   defaultPosId?: string;
   onClose: () => void;
   onSave: (posId: string, year: number, month: number, forecasts: Record<string, number>) => void;
@@ -11,7 +11,7 @@ interface ForecastModalProps {
   isDark?: boolean;
 }
 
-function listPOS(data: CentreHierarchy) {
+function listPOS(data: DAHierarchy) {
   const entities: { id: string; path: string }[] = [];
   for (const da of data.da) {
     for (const dsm of da.dsm) {
@@ -45,8 +45,6 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
   useEffect(() => {
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
-    // Calendrier d'achat réel déjà saisi pour ce POS/mois (table calendrier_achat côté backend),
-    // pré-chargé pour ne pas écraser des valeurs existantes.
     const load = async () => {
       let existingByIso: Record<string, number> = {};
       if (onLoadExisting && posId) {

@@ -1,6 +1,6 @@
-import type { CentreHierarchy, DashboardData, DailyRecord } from '../types';
+import type { DAHierarchy, DashboardData, DailyRecord } from '../types';
 
-export const mockHierarchyData: CentreHierarchy = {
+export const mockHierarchyData: DAHierarchy = {
   id: '1',
   nom: 'CPDSM 1',
   da: [],
