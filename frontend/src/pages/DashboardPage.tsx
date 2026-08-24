@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Moon, SunMedium } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -10,7 +10,7 @@ import { AssignmentModal } from '../components/dashboard/AssignmentModal';
 import { apiService } from '../api/services';
 
 import type {
-  CentreHierarchy,
+  DAHierarchy,
   DailyRecord,
   DashboardData,
   DSMNode,
@@ -25,20 +25,21 @@ import { ConsumptionChart } from '../components/dashboard/ConsumptionChart';
 import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 import { RoleWorkspace } from '../components/dashboard/RoleWorkspace';
 import { AddPartnerModal } from '../components/dashboard/AddPartnerModal';
+import { AlertDetailsModal } from '../components/dashboard/AlertDetailsModal';
 
 interface DashboardPageProps {
   isDark: boolean;
   onToggleTheme: () => void;
 }
 
-function addDSM(tree: CentreHierarchy, daId: string, dsm: DSMNode): CentreHierarchy {
+function addDSM(tree: DAHierarchy, daId: string, dsm: DSMNode): DAHierarchy {
   return {
     ...tree,
     da: tree.da.map((da) => (da.id === daId ? { ...da, dsm: [...da.dsm, dsm] } : da)),
   };
 }
 
-function addPOS(tree: CentreHierarchy, dsmId: string, pos: POSNode): CentreHierarchy {
+function addPOS(tree: DAHierarchy, dsmId: string, pos: POSNode): DAHierarchy {
   return {
     ...tree,
     da: tree.da.map((da) => ({
@@ -48,9 +49,9 @@ function addPOS(tree: CentreHierarchy, dsmId: string, pos: POSNode): CentreHiera
   };
 }
 
-function movePOS(tree: CentreHierarchy, posId: string, targetDsmId: string): CentreHierarchy {
+function movePOS(tree: DAHierarchy, posId: string, targetDsmId: string): DAHierarchy {
   let movedPOS: POSNode | undefined;
-  const withoutPOS: CentreHierarchy = {
+  const withoutPOS: DAHierarchy = {
     ...tree,
     da: tree.da.map((da) => ({
       ...da,
@@ -66,7 +67,7 @@ function movePOS(tree: CentreHierarchy, posId: string, targetDsmId: string): Cen
   return addPOS(withoutPOS, targetDsmId, movedPOS);
 }
 
-function listDSM(tree: CentreHierarchy) {
+function listDSM(tree: DAHierarchy) {
   return tree.da.flatMap((da) =>
     da.dsm.map((dsm) => ({
       id: dsm.id,
@@ -84,7 +85,7 @@ function daysInCurrentMonthFor(dateStr: string) {
 export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const emptyHierarchy: CentreHierarchy = { id: '', nom: '', da: [] };
+  const emptyHierarchy: DAHierarchy = { id: '', nom: '', da: [] };
   const emptyDashboard: DashboardData = {
     entite_id: '',
     nom_entite: '',
@@ -99,7 +100,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     },
   };
 
-  const [hierarchyData, setHierarchyData] = useState<CentreHierarchy>(emptyHierarchy);
+  const [hierarchyData, setHierarchyData] = useState<DAHierarchy>(emptyHierarchy);
   const [dashboardData, setDashboardData] = useState<DashboardData>(emptyDashboard);
   const [selectedEntityType, setSelectedEntityType] = useState<EntityType>('DA');
   const [records, setRecords] = useState<DailyRecord[]>([]);
@@ -112,6 +113,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [operationnels, setOperationnels] = useState<Operationnel[]>([]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
   const [addPartnerModalOpen, setAddPartnerModalOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedDetailEntity, setSelectedDetailEntity] = useState<{ id: string; nom: string } | null>(null);
 
   const role = user?.role ?? 'OPERATIONNEL';
   const canCreateEntry = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
@@ -130,7 +133,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
   const canAccessDA = (daId: string) => role !== 'OPERATIONNEL' || user?.partenaireId === daId;
 
-  // Charge la hiérarchie, les affectations et les opérationnels réels depuis le backend.
   useEffect(() => {
     setLoadingHierarchy(true);
     apiService
@@ -188,12 +190,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setAddPartnerModalOpen(true);
   };
 
+  const handleShowDetails = () => {
+    setSelectedDetailEntity({ id: dashboardData.entite_id, nom: dashboardData.nom_entite });
+    setIsDetailsOpen(true);
+  };
+
   const handleCreatePartner = (payload: AddPartnerPayload) => {
     apiService
       .creerPartenaire(payload)
       .then(() => {
         setAddPartnerModalOpen(false);
-        // Recharge la hiérarchie et les affectations pour refléter la donnée réelle.
         apiService
           .getHierarchie()
           .then((data) => setHierarchyData(data))
@@ -362,8 +368,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     stockJournalier: number;
     achat: number;
   }) => {
-    // Envoi réel au backend : la saisie cible un POS précis, avec son stock
-    // journalier réel (persisté dans la table `stock`, plus jamais perdu).
     apiService
       .postSaisie({
         id_pos: payload.entityId,
@@ -372,8 +376,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         stock_journalier: payload.stockJournalier,
       })
       .then(() => {
-        // On rafraîchit les KPI et l'historique de l'entité actuellement affichée
-        // (pas forcément le POS visé par la saisie, si l'utilisateur regarde un DA/DSM).
         const currentType = selectedEntityType;
         const currentId = dashboardData.entite_id;
 
@@ -409,7 +411,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     month: number,
     forecasts: Record<string, number>,
   ) => {
-    // Conversion des clés jj/mm/aaaa (saisie utilisateur) vers aaaa-mm-jj (backend).
     const isoForecasts: Record<string, number> = {};
     Object.entries(forecasts).forEach(([dateKey, value]) => {
       const [day, mon, yr] = dateKey.split('/');
@@ -427,16 +428,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .catch((err) => console.error("Échec de l'enregistrement du calendrier d'achat :", err));
   };
 
-  const monthLabel = new Date(referenceDate).toLocaleDateString('fr-FR', {
-    month: 'long',
-    year: 'numeric',
-  });
-
   const handleSaveObjective = (value: number) => {
     const currentType = selectedEntityType;
     const currentId = dashboardData.entite_id;
 
-    // Mise à jour optimiste de l'affichage, puis persistance réelle en base.
     setDashboardData((prev) => ({
       ...prev,
       kpi: {
@@ -461,11 +456,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setAssignmentToEdit(null);
   };
 
+  const monthLabel = new Date(referenceDate).toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+  });
+
   return (
     <div className={`flex min-h-screen font-sans ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
       {loadingHierarchy ? (
         <div className="flex w-72 items-center justify-center border-r border-slate-800/20 p-6 text-sm text-slate-400">
-          Chargement de la hiérarchie…
+          Chargement de la hiérarchie...
         </div>
       ) : (
         <Sidebar
@@ -557,30 +557,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             operationnels={operationnels}
             assignments={assignments}
             partners={hierarchyData.da}
+            records={records}
           />
 
-          {/* Bannière d'alerte dynamique */}
           {dashboardData?.kpi?.statut_alerte && dashboardData.kpi.statut_alerte !== 'NORMAL' ? (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm">
-              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-black text-white">! ALERTE</span>
-              <p className="flex-1 font-medium">
-                {dashboardData.nom_entite ? `${dashboardData.nom_entite} est sous surveillance.` : 'Une entité est sous surveillance.'}
-              </p>
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs shadow-sm bg-red-50 border border-red-200">
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 bg-red-600 text-white">
+                ! ALERTE
+              </span>
+              <span className="text-red-700">
+                {dashboardData.nom_entite
+                  ? `${dashboardData.nom_entite} est sous surveillance.`
+                  : 'Une entité est sous surveillance.'}
+              </span>
               <button
                 type="button"
-                onClick={() => navigate('/modifications')}
-                className="font-bold text-rose-700 underline underline-offset-2"
+                onClick={handleShowDetails}
+                className="ml-auto text-red-500 hover:text-red-700 flex-shrink-0 text-xs font-semibold underline underline-offset-2"
               >
                 Voir détails →
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm">
-              <p className="font-medium">
-                {dashboardData?.nom_entite 
-                  ? `Statut de ${dashboardData.nom_entite} : Normal` 
-                  : 'Sélectionnez une entité pour afficher les alertes.'}
-              </p>
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs shadow-sm bg-slate-50 border border-slate-200">
+              <span className="text-slate-600">
+                {dashboardData?.nom_entite
+                  ? `Statut de ${dashboardData.nom_entite} : Normal`
+                  : 'Statut : Normal - Aucune alerte sur le périmètre'}
+              </span>
             </div>
           )}
 
@@ -600,7 +604,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
                   onClick={() => setObjectiveModalOpen(true)}
                   className="ui-button-secondary mt-4 w-full justify-center"
                 >
-                  Modifier l’objectif →
+                  Modifier l'objectif →
                 </button>
               )}
             </div>
@@ -707,6 +711,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         onClose={() => setAddPartnerModalOpen(false)}
         onSubmit={handleCreatePartner}
       />
+
+      {isDetailsOpen && selectedDetailEntity && (
+        <AlertDetailsModal
+          user={user}
+          records={records}
+          assignments={assignments}
+          entityName={selectedDetailEntity.nom}
+          entityId={selectedDetailEntity.id}
+          isDark={isDark}
+          onClose={() => {
+            setIsDetailsOpen(false);
+            setSelectedDetailEntity(null);
+          }}
+        />
+      )}
     </div>
   );
 };

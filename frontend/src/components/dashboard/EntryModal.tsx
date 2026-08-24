@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import type { CentreHierarchy } from '../../types';
+import type { DAHierarchy } from '../../types';
 
 interface EntryModalProps {
   defaultDate: string;
-  hierarchyData: CentreHierarchy;
+  hierarchyData: DAHierarchy;
   onClose: () => void;
   onSubmit: (payload: {
     entityId: string;
@@ -13,7 +13,7 @@ interface EntryModalProps {
   }) => void;
 }
 
-function listWritableEntities(data: CentreHierarchy) {
+function listWritableEntities(data: DAHierarchy) {
   const entities = data.da.map((da) => ({
     id: da.id,
     label: da.nom,

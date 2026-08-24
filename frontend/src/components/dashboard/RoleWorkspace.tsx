@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DANode, OperationalAssignment, Operationnel } from '../../types';
+import type { DANode, DailyRecord, OperationalAssignment, Operationnel } from '../../types';
 import type { User } from '../../auth/AuthContext';
 
 interface RoleWorkspaceProps {
@@ -8,6 +8,7 @@ interface RoleWorkspaceProps {
   operationnels?: Operationnel[];
   assignments?: OperationalAssignment[];
   partners?: DANode[];
+  records?: DailyRecord[];
 }
 
 function listScopes(assignments: OperationalAssignment[]): string {
@@ -21,6 +22,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
   operationnels = [],
   assignments = [],
   partners = [],
+  records = [],
 }) => {
   const totalPartners = partners.length;
   const totalOperationnels = operationnels.length;
@@ -45,7 +47,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
           <StatCard
             label="Partenaires"
             value={String(totalPartners)}
-            hint="Partenaires & POS sous le centre"
+            hint="Partenaires & POS sous le DA"
           />
         </div>
       </Card>
@@ -73,7 +75,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
 
   if (isChef) {
     return (
-      <Card role="CHEF_OPE" label="Chef opérationnel" title="Suivi opérationnel du centre">
+      <Card role="CHEF_OPE" label="Chef opérationnel" title="Suivi opérationnel du DA">
         <div className="grid gap-3 md:grid-cols-2">
           <StatCard
             label="Opérationnels affectés"
@@ -83,7 +85,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
           <StatCard
             label="Partenaires sous responsabilité"
             value={String(totalPartners)}
-            hint="Partenaires & POS du centre"
+            hint="Partenaires & POS du DA"
           />
         </div>
 
@@ -126,20 +128,73 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
   }
 
   // OPERATIONNEL — périmètre affecté (partenaire de l'utilisateur connecté).
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayRecord = records.find((record) => record.date === todayStr);
+  const partnerName = userPartner?.nom ?? '—';
+  const achatValue = todayRecord
+    ? `${(todayRecord.achat ?? 0).toLocaleString('fr-FR')} U`
+    : 'À saisir';
+  // Demandes de correction : aucune source API dédiée n'est encore branchée côté frontend.
+  // La valeur reste dynamique et s'appuie sur les props quand le backend la fournira (champ
+  // optionnel `corrections` documenté dans Directives_API_Backend.md).
+  type DailyRecordWithCorrections = DailyRecord & { corrections?: number };
+  const recordWithCorrections = records.find(
+    (record) => typeof (record as DailyRecordWithCorrections).corrections === 'number',
+  );
+  const correctionsValue = recordWithCorrections
+    ? String((recordWithCorrections as DailyRecordWithCorrections).corrections!)
+    : '0';
+
   return (
-    <Card role="OPERATIONNEL" label="Opérationnel" title="Saisie et suivi du périmètre affecté">
-      <div className="grid gap-3 md:grid-cols-2">
-        <StatCard
-          label="Partenaire affecté"
-          value={userPartner?.nom ?? '—'}
-          hint={
-            user?.partenaireId
-              ? 'Accès limité à ce partenaire'
-              : 'Aucun partenaire affecté'
-          }
-        />
+    <section className="rounded-2xl border border-slate-200 border-l-4 border-l-emerald-600 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-black tracking-tight text-slate-900">
+              Saisie et suivi du périmètre affecté
+            </h2>
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+              Opérationnel
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Accès limité au partenaire affecté, avec saisie du stock journalier et de l&apos;Achat (U).
+          </p>
+        </div>
+        <span className="whitespace-nowrap text-xs text-slate-400">
+          Partenaire affecté - {partnerName}
+        </span>
       </div>
-    </Card>
+
+      <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        {/* PÉRIMÈTRE */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Périmètre</div>
+          <div className="mt-1 text-sm font-black text-slate-800">{partnerName}</div>
+          {userPartner ? (
+            <div className="mt-2 rounded-lg border border-sky-100 bg-sky-100 px-2.5 py-2 text-xs leading-snug text-sky-600">
+              Accès limité au partenaire affecté
+            </div>
+          ) : (
+            <div className="mt-0.5 text-xs text-slate-500">Saisie limitée au partenaire affecté</div>
+          )}
+        </div>
+
+        {/* ACHAT */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Achat</div>
+          <div className="mt-1 text-sm font-black text-slate-800">{achatValue}</div>
+          <div className="mt-0.5 text-xs text-slate-500">Achat du jour et suivi de correction</div>
+        </div>
+
+        {/* CORRECTIONS */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Corrections</div>
+          <div className="mt-1 text-sm font-black text-slate-800">{correctionsValue}</div>
+          <div className="mt-0.5 text-xs text-slate-500">Au-delà, demande validée par le chef</div>
+        </div>
+      </div>
+    </section>
   );
 };
 // --- Sous-composants d'habillage ---

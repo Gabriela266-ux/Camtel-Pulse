@@ -1,4 +1,4 @@
-import type { CentreHierarchy, DashboardData, EntityType } from '../types';
+import type { DAHierarchy, DashboardData, EntityType } from '../types';
 import type { AddPartnerPayload, OperationalAssignment, Operationnel } from '../types';
 import type { User } from '../auth/AuthContext';
 
@@ -105,8 +105,8 @@ export const apiService = {
     };
   },
 
-  async getHierarchie(): Promise<CentreHierarchy> {
-    return request<CentreHierarchy>('/hierarchie');
+  async getHierarchie(): Promise<DAHierarchy> {
+    return request<DAHierarchy>('/hierarchie');
   },
 
   async getDashboard(type: EntityType, id: string): Promise<DashboardData> {
