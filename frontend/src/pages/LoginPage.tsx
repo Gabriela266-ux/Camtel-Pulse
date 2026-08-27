@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Moon, SunMedium } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, SunMedium } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { apiService } from '../api/services';
 
@@ -13,10 +13,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('chef@camtel.local');
+    const [identifiant, setIdentifiant] = useState('chef@camtel.local');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [_actionLoading, setActionLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,13 +26,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
     setLoading(true);
 
     try {
-      const { token, user } = await apiService.login(email, password);
+            const { token, user } = await apiService.login(identifiant, password);
       login(token, user);
-      navigate('/dashboard');
+      navigate(user.mustChangePassword ? '/change-password' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connexion impossible');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setActionLoading(true);
+    setActionMessage(null);
+    setError(null);
+    try {
+            const result = await apiService.requestPasswordReset(identifiant);
+      setActionMessage(result.message || 'Demande envoyée à l’administrateur.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Demande impossible');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -60,20 +77,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
       </div>
 
       <div className={`w-full max-w-md rounded-3xl border p-8 shadow-xl shadow-slate-200/30 ${cardClass}`}>
-        <div className="mb-2 text-xs font-black tracking-[0.25em] text-sky-600">CAMTEL-PULSE</div>
+        <div className="mb-5 flex items-center gap-3">
+          <img src="/logo-camtel.png" alt="CAMTEL" className="h-14 w-14 rounded-xl object-contain" />
+          <div className="text-xs font-black tracking-[0.2em] text-sky-600">BLUE FINANCIAL PULSE</div>
+        </div>
         <h2 className={`mb-6 text-2xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
           Connexion Plateforme
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className={`mb-1 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        <label className={`mb-1 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               Identifiant / Email
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={identifiant}
+              onChange={(e) => setIdentifiant(e.target.value)}
               className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 ${inputClass}`}
               required
             />
@@ -106,6 +126,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
             {loading ? 'Connexion…' : 'Se Connecter'}
           </button>
         </form>
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs font-bold">
+          <button type="button" onClick={() => { window.location.assign('/'); }} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-sky-600">
+            <ArrowLeft className="h-3.5 w-3.5" /> Retour à l'accueil
+          </button>
+          <button type="button" onClick={handlePasswordReset} className="inline-flex items-center gap-1.5 text-sky-600 hover:text-sky-700">
+            <KeyRound className="h-3.5 w-3.5" /> Mot de passe oublié ?
+          </button>
+        </div>
+
+        <button type="button" onClick={() => { navigate('/', { state: { openRequest: true } }); }} className="mt-5 inline-flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700">
+          Je n'ai pas de compte (Faire une demande d'accès)
+        </button>
+
+        {actionMessage && <p className="mt-3 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-600">{actionMessage}</p>}
       </div>
     </div>
   );

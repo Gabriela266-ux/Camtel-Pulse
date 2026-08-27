@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Activity } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -78,8 +79,9 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
     <section className={sectionClass}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className={`text-sm font-black ${titleClass}`}>
-            📊 Consommation — {period} derniers jours
+          <h3 className={`flex items-center gap-2 text-sm font-black ${titleClass}`}>
+            <Activity className="h-4 w-4 text-sky-600" aria-hidden="true" />
+            Consommation — {period} derniers jours
           </h3>
           <p className="mt-1 text-xs text-slate-500">
             Consommation = Stock j−1 + Achat j−1 − Stock j (données réelles des relevés)

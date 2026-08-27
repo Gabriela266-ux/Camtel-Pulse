@@ -5,7 +5,7 @@ interface AssignmentModalProps {
   assignment: OperationalAssignment;
   partners: DANode[];
   onClose: () => void;
-  onSubmit: (updatedAssignment: OperationalAssignment) => void;
+  onSubmit: (updatedAssignment: OperationalAssignment) => Promise<void> | void;
 }
 
 export const AssignmentModal: React.FC<AssignmentModalProps> = ({
@@ -17,6 +17,8 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   const [partenaireId, setPartenaireId] = useState<string>(assignment.partenaireId);
   const [dsmId, setDsmId] = useState<string | undefined>(assignment.dsmId);
   const [posId, setPosId] = useState<string | undefined>(assignment.posId);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const partner = useMemo(
     () => partners.find((item) => item.id === partenaireId) ?? partners[0],
@@ -27,27 +29,40 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   const selectedDsm = dsmOptions.find((item) => item.id === dsmId) ?? dsmOptions[0];
   const posOptions = selectedDsm?.pos ?? [];
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const partnerName = partners.find((item) => item.id === partenaireId)?.nom ?? assignment.partenaireNom;
+    const selectedPartner = partners.find((item) => item.id === partenaireId);
+    if (!selectedPartner || saving) {
+      setError('Sélectionnez un partenaire existant.');
+      return;
+    }
+    const partnerName = selectedPartner.nom;
 
-    onSubmit({
-      ...assignment,
-      partenaireId,
-      partenaireNom: partnerName,
-      dsmId: dsmOptions.length > 0 ? dsmId ?? selectedDsm?.id : undefined,
-      posId: posOptions.length > 0 ? posId ?? posOptions[0]?.id : undefined,
-    });
+    setSaving(true);
+    setError(null);
+    try {
+      await onSubmit({
+        ...assignment,
+        partenaireId: selectedPartner.id,
+        partenaireNom: partnerName,
+        dsmId: dsmId || undefined,
+        posId: dsmId && posId ? posId : undefined,
+      });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Affectation impossible');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-600">Affectation</p>
+          <div className="flex items-center gap-3"><img src="/logo-camtel.png" alt="CAMTEL" className="h-10 w-10 rounded-lg object-contain" /><div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-600">Affectation</p>
             <h2 className="mt-1 text-xl font-black text-slate-900">Changer poste</h2>
-          </div>
+          </div></div>
 
           <button
             type="button"
@@ -62,7 +77,9 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-black uppercase tracking-wide text-slate-500">Opérationnel</p>
-            <p className="mt-1 text-sm font-bold text-slate-800">{assignment.nomComplet}</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">
+              {assignment.nomComplet?.trim() || assignment.email || 'Opérationnel sans identité'}
+            </p>
             <p className="mt-1 text-xs text-slate-500">
               Poste actuel : Opérationnel — {assignment.partenaireNom}
             </p>
@@ -86,7 +103,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                   setPosId(undefined);
                 }
               }}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             >
               {partners.map((partner) => (
                 <option key={partner.id} value={partner.id}>
@@ -109,7 +126,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                   const nextDsm = dsmOptions.find((item) => item.id === nextDsmId);
                   setPosId(nextDsm?.pos[0]?.id ?? undefined);
                 }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               >
                 <option value="">Affectation globale au partenaire</option>
                 {dsmOptions.map((dsm) => (
@@ -129,7 +146,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               <select
                 value={posId ?? ''}
                 onChange={(event) => setPosId(event.target.value || undefined)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               >
                 <option value="">Non spécifié</option>
                 {posOptions.map((pos) => (
@@ -142,6 +159,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
           )}
 
           <div className="flex justify-end gap-2 pt-2">
+            {error && <p role="alert" className="mr-auto self-center text-xs font-semibold text-rose-600">{error}</p>}
             <button
               type="button"
               onClick={onClose}
@@ -151,9 +169,10 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </button>
             <button
               type="submit"
+              disabled={saving || !partenaireId}
               className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-violet-700"
             >
-              Enregistrer l’affectation
+              {saving ? 'Enregistrement…' : 'Enregistrer l’affectation'}
             </button>
           </div>
         </form>

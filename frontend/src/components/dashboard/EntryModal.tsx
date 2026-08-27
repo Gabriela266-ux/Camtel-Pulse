@@ -1,68 +1,108 @@
-import React, { useState } from 'react';
-import type { DAHierarchy } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { apiService } from '../../api/services';
+import type { EntityType } from '../../types';
 
 interface EntryModalProps {
   defaultDate: string;
-  hierarchyData: DAHierarchy;
+  entityName: string;
+  defaultEntityId: string;
+  defaultEntityType: EntityType;
   onClose: () => void;
   onSubmit: (payload: {
     entityId: string;
+    entityType: EntityType;
     date: string;
     stockJournalier: number;
     achat: number;
-  }) => void;
+  }) => Promise<void> | void;
 }
 
-function listWritableEntities(data: DAHierarchy) {
-  const entities = data.da.map((da) => ({
-    id: da.id,
-    label: da.nom,
-    path: `${data.nom} / ${da.nom}`,
-  }));
-
-  for (const da of data.da) {
-    for (const dsm of da.dsm) {
-      entities.push({
-        id: dsm.id,
-        label: dsm.nom,
-        path: `${data.nom} / ${da.nom} / ${dsm.nom}`,
-      });
-
-      for (const pos of dsm.pos) {
-        entities.push({
-          id: pos.id,
-          label: pos.nom,
-          path: `${data.nom} / ${da.nom} / ${dsm.nom} / ${pos.nom}`,
-        });
-      }
-    }
-  }
-
-  return entities;
+function shiftDate(value: string, amount: number) {
+  const current = new Date(`${value}T00:00:00Z`);
+  current.setUTCDate(current.getUTCDate() + amount);
+  return current.toISOString().slice(0, 10);
 }
 
 export const EntryModal: React.FC<EntryModalProps> = ({
   defaultDate,
-  hierarchyData,
+  entityName,
+  defaultEntityId,
+  defaultEntityType,
   onClose,
   onSubmit,
 }) => {
-  const entities = listWritableEntities(hierarchyData);
-  const [entityId, setEntityId] = useState<string>(entities[0]?.id ?? '');
+  const [entityId] = useState<string>(defaultEntityId);
+  const [entityType] = useState<EntityType>(defaultEntityType);
   const [date, setDate] = useState(defaultDate);
   const [stockJournalier, setStockJournalier] = useState('');
   const [achat, setAchat] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const stockValue = Number(stockJournalier);
+  const achatValue = Number(achat);
+  const valuesAreValid =
+    stockJournalier.trim() !== '' &&
+    achat.trim() !== '' &&
+    Number.isFinite(stockValue) &&
+    Number.isFinite(achatValue) &&
+    stockValue >= 0 &&
+    achatValue >= 0;
 
-  const handleSubmit = (event: React.FormEvent) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExisting = async () => {
+      if (!entityId || !date) return;
+      setLoadingExisting(true);
+      setError(null);
+      try {
+        const existing = await apiService.getRecords(entityType, entityId, date.slice(0, 7));
+        if (cancelled) return;
+        const row = existing.find((record) => record.date === date);
+        setStockJournalier(row?.stock_journalier === null || row?.stock_journalier === undefined ? '' : String(row.stock_journalier));
+        setAchat(row ? String(row.achat ?? 0) : '');
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Impossible de charger la saisie existante');
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
+      }
+    };
+
+    loadExisting();
+    return () => { cancelled = true; };
+  }, [entityId, entityType, date]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stockJournalier || !achat) return;
+    if (!entityId) {
+      setError('Aucune entité sélectionnée. Sélectionnez un partenaire, un DSM ou un POS avant la saisie.');
+      return;
+    }
+    if (!date || !valuesAreValid || saving) {
+      setError('Renseignez une date et deux valeurs numériques positives ou nulles.');
+      return;
+    }
 
-    onSubmit({
-      entityId,
-      date,
-      stockJournalier: Number(stockJournalier),
-      achat: Number(achat),
-    });
+    setError(null);
+    setSaving(true);
+    try {
+      await onSubmit({ entityId, entityType, date, stockJournalier: stockValue, achat: achatValue });
+      onClose();
+    } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible d'enregistrer la saisie");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changeDate = (amount: number) => {
+    if (saving || !date) return;
+    setDate((current) => shiftDate(current, amount));
+    setStockJournalier('');
+    setAchat('');
+    setError(null);
   };
 
   return (
@@ -72,10 +112,10 @@ export const EntryModal: React.FC<EntryModalProps> = ({
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-          <h2 className="text-sm font-black text-slate-800">Saisie journalière</h2>
+          <div className="flex items-center gap-3"><img src="/logo-camtel.png" alt="CAMTEL" className="h-10 w-10 rounded-lg object-contain" /><h2 className="text-sm font-black text-slate-800">Saisie journalière</h2></div>
           <p className="mt-1 text-xs text-slate-500">
             L&apos;opérationnel renseigne le stock journalier et l&apos;achat du jour.
           </p>
@@ -86,30 +126,49 @@ export const EntryModal: React.FC<EntryModalProps> = ({
             <label className="mb-1.5 block text-xs font-bold text-slate-600">
               Entité concernée
             </label>
-            <select
-              value={entityId}
-              onChange={(event) => setEntityId(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
-            >
-              {entities.map((entity) => (
-                <option key={entity.id} value={entity.id}>
-                  {entity.path}
-                </option>
-              ))}
-            </select>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700">
+              {entityName}
+            </div>
           </div>
 
           <div>
             <label className="mb-1.5 block text-xs font-bold text-slate-600">
               Date de référence
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
-            />
-            <p className="mt-1 text-[10px] text-slate-500 font-medium">Dates passées ou futures autorisées</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => changeDate(-1)}
+                disabled={saving || !date}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Jour précédent"
+                title="Jour précédent"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <input
+                type="date"
+                value={date}
+                onChange={(event) => {
+                  setDate(event.target.value);
+                  setError(null);
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
+              />
+              <button
+                type="button"
+                onClick={() => changeDate(1)}
+                disabled={saving || !date}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Jour suivant"
+                title="Jour suivant"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500 font-medium">
+              {loadingExisting ? 'Chargement des valeurs existantes...' : 'Dates passées ou futures autorisées'}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -120,6 +179,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
               <input
                 type="number"
                 min={0}
+                step="any"
                 value={stockJournalier}
                 onChange={(event) => setStockJournalier(event.target.value)}
                 placeholder="ex: 290"
@@ -134,6 +194,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
               <input
                 type="number"
                 min={0}
+                step="any"
                 value={achat}
                 onChange={(event) => setAchat(event.target.value)}
                 placeholder="ex: 640"
@@ -141,22 +202,24 @@ export const EntryModal: React.FC<EntryModalProps> = ({
               />
             </div>
           </div>
+          {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">{error}</p>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             className="rounded-lg px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100"
           >
             Annuler
           </button>
           <button
             type="submit"
-            disabled={!stockJournalier || !achat}
+            disabled={saving}
             className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Enregistrer
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </div>
       </form>
