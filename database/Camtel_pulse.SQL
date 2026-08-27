@@ -1,397 +1,258 @@
+-- =====================================================================
+-- Camtel Pulse — Schéma MySQL aligné sur l'implémentation réelle
+-- (backend/migrations/*) : 15 tables.
+-- =====================================================================
 DROP DATABASE IF EXISTS Camtel_pulse;
-
-CREATE DATABASE IF NOT EXISTS Camtel_pulse;
+CREATE DATABASE IF NOT EXISTS Camtel_pulse CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Camtel_pulse;
-# -----------------------------------------------------------------------------
-#       TABLE : UTILISATEUR
-# -----------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS UTILISATEUR
- (
-   ID_UTILISATEUR VARCHAR(10) NOT NULL  ,
-   ID_ROLE VARCHAR(10) NOT NULL  ,
-   ID_ZONE VARCHAR(10) NOT NULL  ,
-   MATRICULE VARCHAR(10) NOT NULL  ,
-   NOM_COMPLET CHAR(32) NOT NULL  ,
-   EMAIL VARCHAR(32) NOT NULL  ,
-   T�L�PHONE BIGINT(9) NOT NULL  ,
-   MOT_DE_PASSE VARCHAR(32) NOT NULL  ,
-   STATUT BOOL NOT NULL  ,
-   ID_MANAGER VARCHAR(32) NOT NULL  ,
-   DATE_CONNEXION DATE NOT NULL  ,
-   DERNIERE_CONNEXION DATE NOT NULL  
-   , PRIMARY KEY (ID_UTILISATEUR) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE UTILISATEUR
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_UTILISATEUR_ROLE
-     ON UTILISATEUR (ID_ROLE ASC);
-
-CREATE  INDEX I_FK_UTILISATEUR_ZONE
-     ON UTILISATEUR (ID_ZONE ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : POS
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS POS
- (
-   ID_POS VARCHAR(10) NOT NULL  ,
-   ID_DSM VARCHAR(10) NOT NULL  ,
-   ID_ZONE VARCHAR(10) NOT NULL  ,
-   NOM_POS CHAR(32) NOT NULL  ,
-   RAISON_SOCIALE CHAR(32) NOT NULL  ,
-   ADRESSE VARCHAR(10) NOT NULL  ,
-   STATUT BOOL NOT NULL  ,
-   CONTACT BIGINT(9) NOT NULL  ,
-   DATE_ADH�SION DATE NOT NULL  
-   , PRIMARY KEY (ID_POS) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE POS
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_POS_DSM
-     ON POS (ID_DSM ASC);
-
-CREATE  INDEX I_FK_POS_ZONE
-     ON POS (ID_ZONE ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : ZONE
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS ZONE
- (
-   ID_ZONE VARCHAR(10) NOT NULL  ,
-   NOM_ZONE VARCHAR(32) NOT NULL  ,
-   REGION VARCHAR(10) NOT NULL  
-   , PRIMARY KEY (ID_ZONE) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       TABLE : VENTE_DSM_AU_POS
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS VENTE_DSM_AU_POS
- (
-   ID_VENTE VARCHAR(10) NOT NULL  ,
-   ID_DSM VARCHAR(10) NOT NULL  ,
-   ID_POS VARCHAR(10) NOT NULL  ,
-   DATE_VENTE DATE NOT NULL  ,
-   QUANTIT�_VENDU REAL(5,2) NOT NULL  ,
-   MONTANT REAL(12,2) NOT NULL  ,
-   DATE_SAISIE DATE NOT NULL  
-   , PRIMARY KEY (ID_VENTE) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE VENTE_DSM_AU_POS
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_VENTE_DSM_AU_POS_DSM
-     ON VENTE_DSM_AU_POS (ID_DSM ASC);
-
-CREATE  INDEX I_FK_VENTE_DSM_AU_POS_POS
-     ON VENTE_DSM_AU_POS (ID_POS ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : OBJECTIF_MENSUEL
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS OBJECTIF_MENSUEL
- (
-   ID_OBJECTIF VARCHAR(10) NOT NULL  ,
-   ID_POS VARCHAR(10) NULL  ,
-   ID_DA VARCHAR(10) NULL  ,
-   ID_DSM VARCHAR(10) NULL  ,
-   MOI_ANN�E DATE NOT NULL  ,
-   MONTANT_OBJECTIF REAL(12,2) NOT NULL  ,
-   STATUT BOOL NOT NULL  
-   , PRIMARY KEY (ID_OBJECTIF) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE OBJECTIF_MENSUEL
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_OBJECTIF_MENSUEL_POS
-     ON OBJECTIF_MENSUEL (ID_POS ASC);
-
-CREATE  INDEX I_FK_OBJECTIF_MENSUEL_DA
-     ON OBJECTIF_MENSUEL (ID_DA ASC);
-
-CREATE  INDEX I_FK_OBJECTIF_MENSUEL_DSM
-     ON OBJECTIF_MENSUEL (ID_DSM ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : CENTRE
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS CENTRE
- (
-   ID_CENTRE VARCHAR(10) NOT NULL  ,
-   NOM_CENTRE CHAR(32) NOT NULL  ,
-   REGION CHAR(32) NOT NULL  
-   , PRIMARY KEY (ID_CENTRE) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       TABLE : STOCK
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS STOCK
- (
-   ID_STOCK VARCHAR(10) NOT NULL  ,
-   ID_POS VARCHAR(10) NOT NULL  ,
-   ID_DA VARCHAR(10) NOT NULL  ,
-   ID_DSM VARCHAR(10) NOT NULL  ,
-   DATE_STOCK DATE NOT NULL  ,
-   QUANTIT�_CR�DIT REAL(12,2) NOT NULL  ,
-   STATUT BOOL NOT NULL  ,
-   DATE_SAISIR DATE NOT NULL  
-   , PRIMARY KEY (ID_STOCK) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE STOCK
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_STOCK_POS
-     ON STOCK (ID_POS ASC);
-
-CREATE  INDEX I_FK_STOCK_DA
-     ON STOCK (ID_DA ASC);
-
-CREATE  INDEX I_FK_STOCK_DSM
-     ON STOCK (ID_DSM ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : ACHAT_JOURNALIERE
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS ACHAT_JOURNALIERE
- (
-   ID_ACHAT VARCHAR(10) NOT NULL  ,
-   ID_UTILISATEUR VARCHAR(10) NOT NULL  ,
-   ID_DSM VARCHAR(10) NULL  ,
-   ID_DA VARCHAR(10) NULL  ,
-   ID_POS VARCHAR(10) NULL  ,
-   DATE_ACHAT DATE NOT NULL  ,
-   MONTANT_ACHAT REAL(12,2) NOT NULL  ,
-   DATE_SAISIE DATE NOT NULL  
-   , PRIMARY KEY (ID_ACHAT) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE ACHAT_JOURNALIERE
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_ACHAT_JOURNALIERE_UTILISATEUR
-     ON ACHAT_JOURNALIERE (ID_UTILISATEUR ASC);
-
-CREATE  INDEX I_FK_ACHAT_JOURNALIERE_DSM
-     ON ACHAT_JOURNALIERE (ID_DSM ASC);
-
-CREATE  INDEX I_FK_ACHAT_JOURNALIERE_DA
-     ON ACHAT_JOURNALIERE (ID_DA ASC);
-
-CREATE  INDEX I_FK_ACHAT_JOURNALIERE_POS
-     ON ACHAT_JOURNALIERE (ID_POS ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : ROLE
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS ROLE
- (
-   ID_ROLE VARCHAR(10) NOT NULL  ,
-   LIBELL� CHAR(50) NOT NULL  ,
-   DESCRIPTION CHAR(128) NOT NULL  
-   , PRIMARY KEY (ID_ROLE) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       TABLE : DSM
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS DSM
- (
-   ID_DSM VARCHAR(10) NOT NULL  ,
-   ID_ZONE VARCHAR(10) NOT NULL  ,
-   ID_DA VARCHAR(10) NOT NULL  ,
-   NOM_DSM CHAR(32) NOT NULL  ,
-   RAISON_SOCIALE CHAR(32) NOT NULL  ,
-   ADRESSE VARCHAR(32) NOT NULL  ,
-   STATUT BOOL NOT NULL  ,
-   CONTACT BIGINT(9) NOT NULL  ,
-   DATE_ADH�SION DATE NOT NULL  
-   , PRIMARY KEY (ID_DSM) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE DSM
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_DSM_ZONE
-     ON DSM (ID_ZONE ASC);
-
-CREATE  INDEX I_FK_DSM_DA
-     ON DSM (ID_DA ASC);
-
-# -----------------------------------------------------------------------------
-#       TABLE : DA
-# -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS DA
- (
-   ID_DA VARCHAR(10) NOT NULL  ,
-   ID_ZONE VARCHAR(10) NOT NULL  ,
-   ID_CENTRE VARCHAR(10) NOT NULL  ,
-   NOM_DA CHAR(32) NOT NULL  ,
-   RAISON_SOCIALE CHAR(100) NOT NULL  ,
-   STATUT CHAR(10) NOT NULL  ,
-   ADRESSE VARCHAR(128) NOT NULL  ,
-   CONTACT INTEGER(9) NOT NULL  ,
-   DATA_ADH�SION DATE NOT NULL  
-   , PRIMARY KEY (ID_DA) 
- ) 
- comment = "";
-
-# -----------------------------------------------------------------------------
-#       INDEX DE LA TABLE DA
-# -----------------------------------------------------------------------------
-
-
-CREATE  INDEX I_FK_DA_ZONE
-     ON DA (ID_ZONE ASC);
-
-CREATE  INDEX I_FK_DA_CENTRE
-     ON DA (ID_CENTRE ASC);
-
-
-# -----------------------------------------------------------------------------
-#       CREATION DES REFERENCES DE TABLE
-# -----------------------------------------------------------------------------
-
-
-ALTER TABLE UTILISATEUR 
-  ADD FOREIGN KEY FK_UTILISATEUR_ROLE (ID_ROLE)
-      REFERENCES ROLE (ID_ROLE) ;
-
-
-ALTER TABLE UTILISATEUR 
-  ADD FOREIGN KEY FK_UTILISATEUR_ZONE (ID_ZONE)
-      REFERENCES ZONE (ID_ZONE) ;
-
-
-ALTER TABLE POS 
-  ADD FOREIGN KEY FK_POS_DSM (ID_DSM)
-      REFERENCES DSM (ID_DSM) ;
-
-
-ALTER TABLE POS 
-  ADD FOREIGN KEY FK_POS_ZONE (ID_ZONE)
-      REFERENCES ZONE (ID_ZONE) ;
-
-
-ALTER TABLE VENTE_DSM_AU_POS 
-  ADD FOREIGN KEY FK_VENTE_DSM_AU_POS_DSM (ID_DSM)
-      REFERENCES DSM (ID_DSM) ;
-
-
-ALTER TABLE VENTE_DSM_AU_POS 
-  ADD FOREIGN KEY FK_VENTE_DSM_AU_POS_POS (ID_POS)
-      REFERENCES POS (ID_POS) ;
-
-
-ALTER TABLE OBJECTIF_MENSUEL 
-  ADD FOREIGN KEY FK_OBJECTIF_MENSUEL_POS (ID_POS)
-      REFERENCES POS (ID_POS) ;
-
-
-ALTER TABLE OBJECTIF_MENSUEL 
-  ADD FOREIGN KEY FK_OBJECTIF_MENSUEL_DA (ID_DA)
-      REFERENCES DA (ID_DA) ;
-
-
-ALTER TABLE OBJECTIF_MENSUEL 
-  ADD FOREIGN KEY FK_OBJECTIF_MENSUEL_DSM (ID_DSM)
-      REFERENCES DSM (ID_DSM) ;
-
-
-ALTER TABLE STOCK 
-  ADD FOREIGN KEY FK_STOCK_POS (ID_POS)
-      REFERENCES POS (ID_POS) ;
-
-
-ALTER TABLE STOCK 
-  ADD FOREIGN KEY FK_STOCK_DA (ID_DA)
-      REFERENCES DA (ID_DA) ;
-
-
-ALTER TABLE STOCK 
-  ADD FOREIGN KEY FK_STOCK_DSM (ID_DSM)
-      REFERENCES DSM (ID_DSM) ;
-
-
-ALTER TABLE ACHAT_JOURNALIERE 
-  ADD FOREIGN KEY FK_ACHAT_JOURNALIERE_UTILISATEUR (ID_UTILISATEUR)
-      REFERENCES UTILISATEUR (ID_UTILISATEUR) ;
-
-
-ALTER TABLE ACHAT_JOURNALIERE 
-  ADD FOREIGN KEY FK_ACHAT_JOURNALIERE_DSM (ID_DSM)
-      REFERENCES DSM (ID_DSM) ;
-
-
-ALTER TABLE ACHAT_JOURNALIERE 
-  ADD FOREIGN KEY FK_ACHAT_JOURNALIERE_DA (ID_DA)
-      REFERENCES DA (ID_DA) ;
-
-
-ALTER TABLE ACHAT_JOURNALIERE 
-  ADD FOREIGN KEY FK_ACHAT_JOURNALIERE_POS (ID_POS)
-      REFERENCES POS (ID_POS) ;
-
-
-ALTER TABLE DSM 
-  ADD FOREIGN KEY FK_DSM_ZONE (ID_ZONE)
-      REFERENCES ZONE (ID_ZONE) ;
-
-
-ALTER TABLE DSM 
-  ADD FOREIGN KEY FK_DSM_DA (ID_DA)
-      REFERENCES DA (ID_DA) ;
-
-
-ALTER TABLE DA 
-  ADD FOREIGN KEY FK_DA_ZONE (ID_ZONE)
-      REFERENCES ZONE (ID_ZONE) ;
-
-
-ALTER TABLE DA 
-  ADD FOREIGN KEY FK_DA_CENTRE (ID_CENTRE)
-      REFERENCES CENTRE (ID_CENTRE) ;
-
+CREATE TABLE zone (
+    id VARCHAR(36) PRIMARY KEY,
+    nom_zone VARCHAR(100) NOT NULL,
+    region VARCHAR(100) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE role (
+    id VARCHAR(36) PRIMARY KEY,
+    libelle VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE centre (
+    id VARCHAR(36) PRIMARY KEY,
+    nom_centre VARCHAR(150) NOT NULL,
+    region VARCHAR(100) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE da (
+    id VARCHAR(36) PRIMARY KEY,
+    centre_id VARCHAR(36) NOT NULL,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    nom VARCHAR(150) NOT NULL,
+    objectif_mensuel DECIMAL(15,2) NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    region VARCHAR(100),
+    numero_sim VARCHAR(50) UNIQUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (centre_id) REFERENCES centre(id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE dsm (
+    id VARCHAR(36) PRIMARY KEY,
+    da_id VARCHAR(36) NOT NULL,
+    zone_id VARCHAR(36),
+    nom VARCHAR(150) NOT NULL,
+    raison_sociale VARCHAR(150),
+    adresse VARCHAR(255),
+    contact VARCHAR(50),
+    statut VARCHAR(50) NOT NULL DEFAULT 'actif',
+    date_adhesion DATE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (da_id) REFERENCES da(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (zone_id) REFERENCES zone(id) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE pos (
+    id VARCHAR(36) PRIMARY KEY,
+    dsm_id VARCHAR(36) NOT NULL,
+    zone_id VARCHAR(36),
+    nom VARCHAR(150) NOT NULL,
+    raison_sociale VARCHAR(150),
+    adresse VARCHAR(255),
+    contact VARCHAR(50),
+    statut VARCHAR(50) NOT NULL DEFAULT 'actif',
+    date_adhesion DATE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (zone_id) REFERENCES zone(id) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE poste (
+    id VARCHAR(36) PRIMARY KEY,
+    libelle VARCHAR(100) NOT NULL UNIQUE,
+    role_id VARCHAR(36) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (role_id) REFERENCES role(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE utilisateur (
+    id VARCHAR(36) PRIMARY KEY,
+    role_id VARCHAR(36) NOT NULL,
+    poste_id VARCHAR(36),
+    da_id VARCHAR(36),
+    dsm_id VARCHAR(36),
+    pos_id VARCHAR(36),
+    zone_id VARCHAR(36),
+    id_manager VARCHAR(36),
+    matricule VARCHAR(50) NOT NULL UNIQUE,
+    nom_complet VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    telephone VARCHAR(50),
+    mot_de_passe VARCHAR(255) NOT NULL,
+    statut VARCHAR(50) NOT NULL DEFAULT 'actif',
+    derniere_connexion DATETIME,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (role_id) REFERENCES role(id),
+    FOREIGN KEY (poste_id) REFERENCES poste(id),
+    FOREIGN KEY (da_id) REFERENCES da(id),
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id),
+    FOREIGN KEY (pos_id) REFERENCES pos(id),
+    FOREIGN KEY (zone_id) REFERENCES zone(id),
+    FOREIGN KEY (id_manager) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE demande_acces (
+    id VARCHAR(36) PRIMARY KEY,
+    utilisateur_id VARCHAR(36) NOT NULL,
+    poste_id VARCHAR(36) NOT NULL,
+    role_id VARCHAR(36) NOT NULL,
+    nom_complet VARCHAR(150) NOT NULL,
+    matricule VARCHAR(50) NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    telephone VARCHAR(50),
+    statut VARCHAR(30) NOT NULL DEFAULT 'EN_ATTENTE',
+    motif_refus TEXT,
+    valide_par VARCHAR(36),
+    valide_le DATETIME,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id),
+    FOREIGN KEY (poste_id) REFERENCES poste(id),
+    FOREIGN KEY (role_id) REFERENCES role(id),
+    FOREIGN KEY (valide_par) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE objectif_mensuel (
+    id VARCHAR(36) PRIMARY KEY,
+    da_id VARCHAR(36),
+    dsm_id VARCHAR(36),
+    pos_id VARCHAR(36),
+    annee INT NOT NULL,
+    mois INT NOT NULL,
+    montant_objectif DECIMAL(15,2) DEFAULT 0,
+    statut VARCHAR(50) DEFAULT 'en_cours',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (da_id) REFERENCES da(id) ON DELETE CASCADE,
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id) ON DELETE CASCADE,
+    FOREIGN KEY (pos_id) REFERENCES pos(id) ON DELETE CASCADE
+CREATE TABLE stock (
+    id VARCHAR(36) PRIMARY KEY,
+    dsm_id VARCHAR(36),
+    pos_id VARCHAR(36),
+    utilisateur_id VARCHAR(36),
+    date_stock DATE NOT NULL,
+    quantite_credit DECIMAL(15,2) DEFAULT 0,
+    statut VARCHAR(50) DEFAULT 'disponible',
+    date_saisir DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id),
+    FOREIGN KEY (pos_id) REFERENCES pos(id),
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE vente_dsm_au_pos (
+    id VARCHAR(36) PRIMARY KEY,
+    dsm_id VARCHAR(36) NOT NULL,
+    pos_id VARCHAR(36) NOT NULL,
+    utilisateur_id VARCHAR(36),
+    date_vente DATE NOT NULL,
+    quantite_vendu INT DEFAULT 0,
+    montant DECIMAL(15,2) DEFAULT 0,
+    date_saisir DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id),
+    FOREIGN KEY (pos_id) REFERENCES pos(id),
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+
+-- Faute de frappe figée par la migration 202608110010 (modèle AchatJournaliere).
+CREATE TABLE acht_journaliere (
+    id VARCHAR(36) PRIMARY KEY,
+    da_id VARCHAR(36) NOT NULL,
+    utilisateur_id VARCHAR(36),
+    date_achat DATE NOT NULL,
+    montant_achat DECIMAL(15,2) DEFAULT 0,
+    date_saisir DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (da_id) REFERENCES da(id),
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+) ENGINE=InnoDB;
+CREATE TABLE prevision_journaliere (
+    id VARCHAR(36) PRIMARY KEY,
+    da_id VARCHAR(36),
+    dsm_id VARCHAR(36),
+    pos_id VARCHAR(36),
+    date_prevision DATE NOT NULL,
+    montant_prevision DECIMAL(15,2) NOT NULL DEFAULT 0,
+    statut VARCHAR(30) NOT NULL DEFAULT 'brouillon',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uq_prevision_pos_date (pos_id, date_prevision),
+    FOREIGN KEY (da_id) REFERENCES da(id),
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id),
+    FOREIGN KEY (pos_id) REFERENCES pos(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE correction (
+    id VARCHAR(36) PRIMARY KEY,
+    vente_id VARCHAR(36),
+    pos_id VARCHAR(36) NOT NULL,
+    utilisateur_id VARCHAR(36) NOT NULL,
+    date_vente DATE NOT NULL,
+    ancienne_valeur DECIMAL(15,2) NOT NULL DEFAULT 0,
+    nouvelle_valeur DECIMAL(15,2) NOT NULL DEFAULT 0,
+    motif TEXT NOT NULL,
+    statut VARCHAR(30) NOT NULL DEFAULT 'en_attente',
+    valide_par VARCHAR(36),
+    valide_le DATETIME,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (vente_id) REFERENCES vente_dsm_au_pos(id),
+    FOREIGN KEY (pos_id) REFERENCES pos(id),
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id),
+    FOREIGN KEY (valide_par) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE audit_log (
+    id VARCHAR(36) PRIMARY KEY,
+    utilisateur_id VARCHAR(36),
+    action VARCHAR(100) NOT NULL,
+    entite VARCHAR(100),
+    entite_id VARCHAR(36),
+    details TEXT,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE calendrier_achat (
+    id VARCHAR(36) PRIMARY KEY,
+    dsm_id VARCHAR(36),
+    pos_id VARCHAR(36) NOT NULL,
+    utilisateur_id VARCHAR(36),
+    date_prevue DATE NOT NULL,
+    quantite_prevue DECIMAL(15,2) DEFAULT 0,
+    date_saisir DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uq_calendrier_pos_date (pos_id, date_prevue),
+    FOREIGN KEY (dsm_id) REFERENCES dsm(id),
+    FOREIGN KEY (pos_id) REFERENCES pos(id),
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id)
+) ENGINE=InnoDB;
