@@ -1,4 +1,5 @@
 import React from 'react';
+import { ShieldCheck, UserCheck, UserCog, UserX } from 'lucide-react';
 import type { DANode, DailyRecord, OperationalAssignment, Operationnel } from '../../types';
 import type { User } from '../../auth/AuthContext';
 
@@ -9,6 +10,8 @@ interface RoleWorkspaceProps {
   assignments?: OperationalAssignment[];
   partners?: DANode[];
   records?: DailyRecord[];
+  onReassign?: (assignment: OperationalAssignment) => void;
+  onToggleStatus?: (assignment: OperationalAssignment) => void;
 }
 
 function listScopes(assignments: OperationalAssignment[]): string {
@@ -23,6 +26,8 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
   assignments = [],
   partners = [],
   records = [],
+  onReassign,
+  onToggleStatus,
 }) => {
   const totalPartners = partners.length;
   const totalOperationnels = operationnels.length;
@@ -74,25 +79,29 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
   }
 
   if (isChef) {
+    const activeAssignments = assignments.filter((assignment) => assignment.statut !== 'suspendu' && assignment.statut !== 'inactif').length;
+    const suspendedAssignments = assignments.filter((assignment) => assignment.statut === 'suspendu').length;
     return (
-      <Card role="CHEF_OPE" label="Chef opérationnel" title="Suivi opérationnel du DA">
-        <div className="grid gap-3 md:grid-cols-2">
-          <StatCard
-            label="Opérationnels affectés"
-            value={String(totalAssignments)}
-            hint={scopeLabel}
-          />
+      <section id="gestion-operationnels" className="scroll-mt-6 rounded-2xl border border-slate-200 border-l-4 border-l-sky-600 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><p className="text-xs font-black uppercase tracking-wide text-sky-700">Chef opérationnel</p><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">Gestion des opérationnels</h2><p className="mt-1 max-w-2xl text-sm text-slate-600">Pilotez l’équipe, ses affectations et la disponibilité de chaque opérationnel sur le réseau.</p></div>
+          <div className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700"><ShieldCheck className="h-4 w-4" /> Périmètre sécurisé</div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard icon={<UserCog className="h-4 w-4" />} label="Équipe" value={String(totalOperationnels)} hint="Comptes validés et actifs" />
+          <StatCard icon={<UserCheck className="h-4 w-4" />} label="Affectations actives" value={String(activeAssignments)} hint="Opérationnels en activité" />
+          <StatCard icon={<UserX className="h-4 w-4" />} label="Suspendus" value={String(suspendedAssignments)} hint="Réactivation disponible" />
           <StatCard
             label="Partenaires sous responsabilité"
             value={String(totalPartners)}
-            hint="Partenaires & POS du DA"
+            hint="Périmètres attribuables"
           />
         </div>
 
         {assignments.length > 0 && (
           <div className="mt-5">
-            <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-violet-700">
-              Opérationnels et périmètres
+            <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-sky-700">
+              Équipe et périmètres d’affectation
             </h3>
             <ul className="space-y-2">
               {assignments.map((assignment) => {
@@ -102,15 +111,52 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
                   ? `DSM : ${partner?.dsm.find((d) => d.id === assignment.dsmId)?.nom ?? assignment.dsmId}`
                   : `Périmètre : ${assignment.partenaireNom}`;
 
+                const isSuspended = assignment.statut === 'suspendu';
+
                 return (
                   <li
                     key={assignment.userId}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5"
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2.5 ${
+                      isSuspended
+                        ? 'border-amber-200 bg-amber-50'
+                        : 'border-sky-200 bg-sky-50'
+                    }`}
                   >
-                    <span className="text-sm font-bold text-violet-900">
-                      {assignment.nomComplet}
-                    </span>
-                    <span className="text-xs text-violet-700">{scopeInfo}</span>
+                    <div className="min-w-0">
+                      <span className={`text-sm font-bold ${isSuspended ? 'text-amber-800' : 'text-sky-900'}`}>
+                        {assignment.nomComplet?.trim() || assignment.email || 'Opérationnel sans identité'}
+                      </span>
+                      <span className="ml-2 text-xs text-slate-500">{scopeInfo}</span>
+                      {isSuspended && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                          Suspendu
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      {onReassign && (
+                        <button
+                          type="button"
+                          onClick={() => onReassign(assignment)}
+                          className="rounded-lg border border-sky-300 bg-white px-2.5 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-50"
+                        >
+                          Réaffecter
+                        </button>
+                      )}
+                      {onToggleStatus && (
+                        <button
+                          type="button"
+                          onClick={() => onToggleStatus(assignment)}
+                          className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold ${
+                            isSuspended
+                              ? 'border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50'
+                              : 'border-amber-300 bg-white text-amber-700 hover:bg-amber-50'
+                          }`}
+                        >
+                          {isSuspended ? 'Réactiver' : 'Suspendre'}
+                        </button>
+                      )}
+                    </div>
                   </li>
                 );
               })}
@@ -123,7 +169,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
             Aucun opérationnel affecté pour le moment.
           </p>
         )}
-      </Card>
+      </section>
     );
   }
 
@@ -166,7 +212,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {/* PÉRIMÈTRE */}
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
           <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Périmètre</div>
@@ -233,16 +279,16 @@ function borderFor(role: string): string {
       return 'border-l-slate-600';
     case 'CHEF_OPE':
     case 'CHEF_OPERATIONNEL':
-      return 'border-l-violet-600';
+      return 'border-l-sky-600';
     default:
       return 'border-l-emerald-600';
   }
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function StatCard({ label, value, hint, icon }: { label: string; value: string; hint?: string; icon?: React.ReactNode }) {
   return (
     <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="flex items-center gap-2 text-slate-500">{icon}<p className="text-xs font-black uppercase tracking-wide">{label}</p></div>
       <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </article>

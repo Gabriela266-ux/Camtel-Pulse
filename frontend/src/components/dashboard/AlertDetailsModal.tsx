@@ -16,7 +16,7 @@ interface AlertDetailsModalProps {
 const ROLE_BADGE: Record<AppRole, { label: string; className: string }> = {
   ADMIN: { label: 'Administrateur', className: 'bg-sky-100 text-sky-700' },
   MANAGER: { label: 'Manager', className: 'bg-slate-100 text-slate-700' },
-  CHEF_OPE: { label: 'Chef opérationnel', className: 'bg-violet-100 text-violet-700' },
+  CHEF_OPE: { label: 'Chef opérationnel', className: 'bg-sky-100 text-sky-700' },
   OPERATIONNEL: { label: 'Opérationnel', className: 'bg-emerald-100 text-emerald-700' },
 };
 

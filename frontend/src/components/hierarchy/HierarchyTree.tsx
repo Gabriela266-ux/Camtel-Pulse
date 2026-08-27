@@ -52,10 +52,10 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
   const filteredDA = data.da
     .map((da) => ({
       ...da,
-      dsm: da.dsm
+      dsm: (Array.isArray(da.dsm) ? da.dsm : [])
         .map((dsm) => ({
           ...dsm,
-          pos: dsm.pos.filter((pos) =>
+          pos: (Array.isArray(dsm.pos) ? dsm.pos : []).filter((pos) =>
             pos.nom.toLocaleLowerCase('fr-FR').includes(query),
           ),
         }))
