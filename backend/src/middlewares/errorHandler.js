@@ -4,7 +4,8 @@ function errorHandler(err, req, res, next) {
   res.status(statusCode).json({
     ok: false,
     message: err.message || 'Erreur interne du serveur',
-    errors: err.errors || undefined
+    errors: err.errors || undefined,
+    references: err.references || undefined
   });
 }
 

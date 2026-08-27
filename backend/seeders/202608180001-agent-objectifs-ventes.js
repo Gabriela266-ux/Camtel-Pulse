@@ -57,7 +57,7 @@ module.exports = {
         email: 'operateur@camtel.local',
         telephone: '690000003',
         mot_de_passe: hashedOperateur,
-        statut: 'actif',
+        statut: 'inactif',
         created_at: dateNow,
         updated_at: dateNow
       }

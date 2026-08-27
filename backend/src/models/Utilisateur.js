@@ -11,6 +11,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       references: { model: 'role', key: 'id' }
     },
+    poste_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'poste', key: 'id' }
+    },
     da_id: {
       type: DataTypes.STRING(36),
       allowNull: true,
@@ -58,6 +63,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(255),
       allowNull: false
     },
+    must_change_password: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
     statut: {
       type: DataTypes.STRING(50),
       allowNull: false,
@@ -75,11 +85,14 @@ module.exports = (sequelize, DataTypes) => {
 
   Utilisateur.associate = function associate(models) {
     Utilisateur.belongsTo(models.Role, { foreignKey: 'role_id', as: 'role' });
+    Utilisateur.belongsTo(models.Poste, { foreignKey: 'poste_id', as: 'poste' });
     Utilisateur.belongsTo(models.Da, { foreignKey: 'da_id', as: 'da' });
     Utilisateur.belongsTo(models.Dsm, { foreignKey: 'dsm_id', as: 'dsm' });
     Utilisateur.belongsTo(models.Pos, { foreignKey: 'pos_id', as: 'pos' });
     Utilisateur.belongsTo(models.Zone, { foreignKey: 'zone_id', as: 'zone' });
     Utilisateur.belongsTo(models.Utilisateur, { foreignKey: 'id_manager', as: 'manager' });
+    Utilisateur.hasMany(models.DemandeAcces, { foreignKey: 'utilisateur_id', as: 'demandesAcces' });
+    Utilisateur.hasMany(models.DemandeAcces, { foreignKey: 'valide_par', as: 'demandesValidees' });
   };
 
   return Utilisateur;

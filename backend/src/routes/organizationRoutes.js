@@ -19,6 +19,84 @@ async function audit(req, action, entite, entiteId, details) {
     });
 }
 
+async function deleteForeignKeyDependents(referencedTable, ids, transaction) {
+    if (!ids.length) return;
+
+    const dialect = db.sequelize.getDialect();
+    const quoteIdentifier = (name) => dialect === 'mysql' ?
+        `\`${String(name).replace(/`/g, '``')}\``
+        : `"${String(name).replace(/"/g, '""')}"`;
+
+    if (dialect === 'mysql') {
+        const [foreignKeys] = await db.sequelize.query(
+            `SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
+             FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+             WHERE CONSTRAINT_SCHEMA = DATABASE()
+               AND REFERENCED_TABLE_NAME = :referencedTable`,
+            { replacements: { referencedTable }, transaction },
+        );
+
+        for (const foreignKey of Array.isArray(foreignKeys) ? foreignKeys : []) {
+            await db.sequelize.query(
+                `DELETE FROM ${quoteIdentifier(foreignKey.tableName)}
+                 WHERE ${quoteIdentifier(foreignKey.columnName)} IN (:ids)`,
+                { replacements: { ids }, transaction },
+            );
+        }
+        return;
+    }
+
+    const tables = await db.sequelize.query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        { transaction, type: db.Sequelize.QueryTypes.SELECT }
+    );
+    for (const tableRow of Array.isArray(tables) ? tables : []) {
+        const tableName = tableRow.name;
+        if (tableName === referencedTable) continue;
+
+        const foreignKeys = await db.sequelize.query(
+            `PRAGMA foreign_key_list(${quoteIdentifier(tableName)})`,
+            { transaction, type: db.Sequelize.QueryTypes.SELECT }
+        );
+        const matchingKeys = foreignKeys
+            .filter((foreignKey) => foreignKey.table === referencedTable);
+
+        for (const foreignKey of matchingKeys) {
+            await db.sequelize.query(
+                `DELETE FROM ${quoteIdentifier(tableName)} WHERE ${quoteIdentifier(foreignKey.from)} IN (:ids)`, { replacements: { ids }, transaction }
+            );
+        }
+    }
+}
+
+async function deletePosData(posIds, transaction) {
+    if (!posIds.length) return;
+
+    if (db.Correction) await db.Correction.destroy({ where: { pos_id: posIds }, transaction });
+    if (db.CalendrierAchat) await db.CalendrierAchat.destroy({ where: { pos_id: posIds }, transaction });
+    if (db.PrevisionJournaliere) await db.PrevisionJournaliere.destroy({ where: { pos_id: posIds }, transaction });
+    if (db.ObjectifMensuel) await db.ObjectifMensuel.destroy({ where: { pos_id: posIds }, transaction });
+    if (db.Stock) await db.Stock.destroy({ where: { pos_id: posIds }, transaction });
+    if (db.VenteDsmAuPos) await db.VenteDsmAuPos.destroy({ where: { pos_id: posIds }, transaction });
+    await db.Utilisateur.update({ pos_id: null }, { where: { pos_id: posIds }, transaction });
+}
+
+async function deleteDsmData(dsmIds, transaction) {
+    if (!dsmIds.length) return;
+
+    const posRows = await db.Pos.findAll({ where: { dsm_id: dsmIds }, attributes: ['id'], transaction });
+    const posIds = posRows.map((pos) => pos.id);
+    await deletePosData(posIds, transaction);
+    if (db.AchatJournaliere) await db.AchatJournaliere.destroy({ where: { dsm_id: dsmIds }, transaction });
+    if (db.CalendrierAchat) await db.CalendrierAchat.destroy({ where: { dsm_id: dsmIds }, transaction });
+    if (db.PrevisionJournaliere) await db.PrevisionJournaliere.destroy({ where: { dsm_id: dsmIds }, transaction });
+    if (db.ObjectifMensuel) await db.ObjectifMensuel.destroy({ where: { dsm_id: dsmIds }, transaction });
+    if (db.Stock) await db.Stock.destroy({ where: { dsm_id: dsmIds }, transaction });
+    if (db.VenteDsmAuPos) await db.VenteDsmAuPos.destroy({ where: { dsm_id: dsmIds }, transaction });
+    await db.Utilisateur.update({ dsm_id: null }, { where: { dsm_id: dsmIds }, transaction });
+    await db.Pos.destroy({ where: { dsm_id: dsmIds }, transaction });
+}
+
 router.post('/clients', authorize('admin', 'chef_operationnel'), async(req, res, next) => {
     try {
         const nom = String((req.body && req.body.nom) || '').trim();
@@ -72,7 +150,19 @@ router.delete('/clients/:id', manageNetwork, async(req, res, next) => {
     try {
         const client = await db.Da.findByPk(req.params.id);
         if (!client) return res.status(404).json({ ok: false, message: 'Partenaire introuvable' });
-        await client.destroy();
+        await db.sequelize.transaction(async(transaction) => {
+            const dsmRows = await db.Dsm.findAll({ where: { da_id: client.id }, attributes: ['id'], transaction });
+            const dsmIds = dsmRows.map((dsm) => dsm.id);
+            await deleteDsmData(dsmIds, transaction);
+            if (db.AchatJournaliere) await db.AchatJournaliere.destroy({ where: { da_id: client.id }, transaction });
+            if (db.CalendrierAchat) await db.CalendrierAchat.destroy({ where: { da_id: client.id }, transaction });
+            if (db.ObjectifMensuel) await db.ObjectifMensuel.destroy({ where: { da_id: client.id }, transaction });
+            if (db.PrevisionJournaliere) await db.PrevisionJournaliere.destroy({ where: { da_id: client.id }, transaction });
+            await db.Utilisateur.update({ da_id: null }, { where: { da_id: client.id }, transaction });
+            await db.Dsm.destroy({ where: { da_id: client.id }, transaction });
+            await deleteForeignKeyDependents('da', [client.id], transaction);
+            await client.destroy({ transaction });
+        });
         await audit(req, 'partenaire_supprime', 'da', req.params.id, {});
         return res.json({ ok: true, data: { id: req.params.id } });
     } catch (error) { return next(error); }
@@ -107,7 +197,11 @@ router.delete('/dsms/:id', manageNetwork, async(req, res, next) => {
     try {
         const dsm = await db.Dsm.findByPk(req.params.id);
         if (!dsm) return res.status(404).json({ ok: false, message: 'DSM introuvable' });
-        await dsm.destroy();
+        await db.sequelize.transaction(async(transaction) => {
+            await deleteDsmData([dsm.id], transaction);
+            await deleteForeignKeyDependents('dsm', [dsm.id], transaction);
+            await dsm.destroy({ transaction });
+        });
         await audit(req, 'dsm_supprime', 'dsm', req.params.id, {});
         return res.json({ ok: true, data: { id: req.params.id } });
     } catch (error) { return next(error); }
@@ -145,7 +239,11 @@ router.delete('/pos/:id', manageNetwork, async(req, res, next) => {
     try {
         const pos = await db.Pos.findByPk(req.params.id);
         if (!pos) return res.status(404).json({ ok: false, message: 'POS introuvable' });
-        await pos.destroy();
+        await db.sequelize.transaction(async(transaction) => {
+            await deletePosData([pos.id], transaction);
+            await deleteForeignKeyDependents('pos', [pos.id], transaction);
+            await pos.destroy({ transaction });
+        });
         await audit(req, 'pos_supprime', 'pos', req.params.id, {});
         return res.json({ ok: true, data: { id: req.params.id } });
     } catch (error) { return next(error); }

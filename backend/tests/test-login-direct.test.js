@@ -12,10 +12,6 @@ describe('Direct Login Test', () => {
         password: 'Admin123!'
       });
 
-    console.log('Response status:', response.status);
-    console.log('Response body:', response.body);
-    console.log('Response headers:', response.headers);
-
     if (response.status !== 200) {
       console.log('Login failed! Check why.');
     }

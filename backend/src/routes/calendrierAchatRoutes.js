@@ -5,32 +5,42 @@ const calendrierAchatService = require('../services/calendrierAchatService');
 const router = express.Router();
 router.use(authenticate);
 
-// POST /api/calendrier-achat  { id_pos, dsm_id?, forecasts: { 'YYYY-MM-DD': quantite } }
+// POST /api/calendrier-achat  { entity_type: 'DA'|'DSM'|'POS', entity_id, forecasts }
 router.post('/', async (req, res, next) => {
   try {
-    const { id_pos, dsm_id, forecasts } = req.body || {};
+    const { entity_type, entity_id, forecasts } = req.body || {};
 
-    if (!id_pos || !forecasts || typeof forecasts !== 'object') {
-      return res.status(400).json({ ok: false, message: 'id_pos et forecasts sont obligatoires' });
+    if (!entity_type || !entity_id || !forecasts || typeof forecasts !== 'object') {
+      return res.status(400).json({ ok: false, message: 'entity_type, entity_id et forecasts sont obligatoires' });
     }
 
-    await calendrierAchatService.saveBulk({ id_pos, dsm_id, forecasts, utilisateur_id: req.user.id });
-    return res.status(201).json({ ok: true });
+    const data = await calendrierAchatService.saveBulk({ entity_type, entity_id, forecasts, utilisateur_id: req.user.id });
+    return res.status(201).json({
+      ok: true,
+      data: data.map((row) => ({
+        id: String(row.id),
+        entity_type: String(entity_type).toUpperCase(),
+        entity_id: String(entity_id),
+        date: row.date_prevue,
+        montant: Number(row.quantite_prevue),
+        volume: Number(row.quantite_prevue)
+      }))
+    });
   } catch (error) {
     next(error);
   }
 });
 
-// GET /api/calendrier-achat?id_pos=...&year=2026&month=8
+// GET /api/calendrier-achat?entity_type=DA&entity_id=...&year=2026&month=8
 router.get('/', async (req, res, next) => {
   try {
-    const { id_pos, year, month } = req.query;
+    const { entity_type, entity_id, year, month } = req.query;
 
-    if (!id_pos || !year || !month) {
-      return res.status(400).json({ ok: false, message: 'id_pos, year et month sont obligatoires' });
+    if (!entity_type || !entity_id || !year || !month) {
+      return res.status(400).json({ ok: false, message: 'entity_type, entity_id, year et month sont obligatoires' });
     }
 
-    const data = await calendrierAchatService.getForMonth(id_pos, Number(year), Number(month));
+    const data = await calendrierAchatService.getForMonth(entity_type, entity_id, Number(year), Number(month));
     return res.json({ ok: true, data });
   } catch (error) {
     next(error);

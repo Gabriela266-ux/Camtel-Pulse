@@ -19,6 +19,8 @@ const accountRoutes = require('./routes/accountRoutes');
 const advancedRoutes = require('./routes/advancedRoutes');
 const calendrierAchatRoutes = require('./routes/calendrierAchatRoutes');
 const previsionRoutes = require('./routes/previsionRoutes');
+const operationnelRoutes = require('./routes/operationnelRoutes');
+const snapshotRoutes = require('./routes/snapshotRoutes');
 
 dotenv.config();
 
@@ -30,6 +32,17 @@ function createApp() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(morgan('dev'));
+
+  // The API is normally consumed through the Vite frontend, but opening the
+  // backend URL directly should not produce Express' default "Cannot GET /".
+  app.get('/', (req, res) => {
+    res.status(200).json({
+      ok: true,
+      name: 'Camtel Pulse API',
+      status: 'running',
+      health: '/api/health'
+    });
+  });
 
   app.get('/api/health', (req, res) => {
     res.status(200).json({
@@ -65,6 +78,15 @@ function createApp() {
   app.use('/api/advanced', advancedRoutes);
   app.use('/api/calendrier-achat', calendrierAchatRoutes);
   app.use('/api/previsions', previsionRoutes);
+
+  // Endpoints console d'administration & vue Chef opérationnel.
+  // GET /api/operationnels · GET /api/affectations · POST /api/partenaires · PATCH /api/affectations/:userId
+  app.use('/api', operationnelRoutes);
+  app.use('/api/snapshots', snapshotRoutes);
+
+  app.use('/api', (req, res) => {
+    res.status(404).json({ ok: false, message: `Route API introuvable: ${req.method} ${req.originalUrl}` });
+  });
 
   app.use(errorHandler);
 

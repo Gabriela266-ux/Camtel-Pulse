@@ -11,6 +11,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       references: { model: 'da', key: 'id' }
     },
+    dsm_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'dsm', key: 'id' }
+    },
+    scope_type: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: 'LEGACY'
+    },
     utilisateur_id: {
       type: DataTypes.STRING(36),
       allowNull: true,
@@ -38,6 +48,7 @@ module.exports = (sequelize, DataTypes) => {
 
   AchatJournaliere.associate = function associate(models) {
     AchatJournaliere.belongsTo(models.Da, { foreignKey: 'da_id', as: 'da' });
+    AchatJournaliere.belongsTo(models.Dsm, { foreignKey: 'dsm_id', as: 'dsm' });
     AchatJournaliere.belongsTo(models.Utilisateur, { foreignKey: 'utilisateur_id', as: 'saisi_par' });
   };
 

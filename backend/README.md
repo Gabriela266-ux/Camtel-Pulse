@@ -3,7 +3,7 @@
 **Version Premium — Août 2026**
 *(intègre les compléments du cahier des charges « PRO » : calendrier, champs dynamiques Prévision/Réalisation/Suivi, cascade de calcul du stock de sécurité)*
 
-Application de suivi des objectifs commerciaux et de la performance des points de vente (POS) — Centre 1 CDPSM, Camtel Littoral (rattaché à la DRLM/DVBUM).
+Application de suivi des objectifs commerciaux et de la performance des points de vente (POS) — CPDSM 1, Camtel Littoral (rattaché à la DRLM/DVBUM).
 
 Camtel-Pulse remplace le suivi manuel par exports Excel (« Balance Overview ») par une plateforme web centralisée : saisie journalière, calendrier mensuel/hebdomadaire/journalier, calcul automatique des seuils, alertes visuelles, historisation complète et gestion fine des accès.
 
@@ -31,7 +31,7 @@ Camtel-Pulse remplace le suivi manuel par exports Excel (« Balance Overview »)
 
 ## Contexte
 
-Le Centre 1 CDPSM suit les objectifs commerciaux mensuels fixés par Camtel à ses partenaires stratégiques (Glotelho, Master Color), via un réseau structuré : **Centre → Client/Master SIM (DA) → DSM → POS** (avec de rares cas de Sous-POS rattachés à un autre POS).
+Le CPDSM 1 suit les objectifs commerciaux mensuels fixés par Camtel à ses partenaires stratégiques (Glotelho, Master Color), via un réseau structuré : **Centre → Client/Master SIM (DA) → DSM → POS** (avec de rares cas de Sous-POS rattachés à un autre POS).
 
 Le cahier des charges « PRO » situe ce Centre au sein d'une organisation plus large : **DRLM → DVBUM → Centre (CDPSM) → DA/Master SIM → DSM → POS**. Cette racine DRLM/DVBUM est documentée pour préparer une éventuelle extension multi-centres, mais n'entre pas dans le périmètre fonctionnel du pilote Centre 1.
 
@@ -223,7 +223,7 @@ cd camtel-pulse-backend
 npm install
 cp .env.example .env   # renseigner les variables (voir ci-dessous)
 npx sequelize-cli db:migrate
-npx sequelize-cli db:seed:all   # jeu de données de démo (Centre 1 CDPSM)
+npx sequelize-cli db:seed:all   # jeu de données de démo (CPDSM 1)
 npm run dev
 
 # Frontend
@@ -284,7 +284,7 @@ npx sequelize-cli db:migrate:undo   # rollback de la dernière migration
 2. Conception — MCD/MLD, architecture technique, maquettage
 3. Développement — auth, réseau, imports, saisie, calendrier, calculs (Prévision/Réalisation/Suivi), permissions
 4. Reporting — dashboard, alertes, recherche, historique
-5. Recette et mise en service — tests terrain, formation, déploiement pilote Centre 1 CDPSM
+5. Recette et mise en service — tests terrain, formation, déploiement pilote CPDSM 1
 
 ## Points encore à trancher avec l'encadreur
 
