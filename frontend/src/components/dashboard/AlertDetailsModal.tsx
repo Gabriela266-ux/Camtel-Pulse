@@ -1,14 +1,12 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import type { DANode, DailyRecord, OperationalAssignment, Operationnel, AppRole } from '../../types';
+import type { DailyRecord, OperationalAssignment, AppRole } from '../../types';
 import type { User } from '../../auth/AuthContext';
 
 interface AlertDetailsModalProps {
   user: User | null;
   records: DailyRecord[];
   assignments: OperationalAssignment[];
-  _operationnels: Operationnel[];
-  _partners: DANode[];
   entityName: string;
   entityId?: string;
   isDark?: boolean;
@@ -18,7 +16,7 @@ interface AlertDetailsModalProps {
 const ROLE_BADGE: Record<AppRole, { label: string; className: string }> = {
   ADMIN: { label: 'Administrateur', className: 'bg-sky-100 text-sky-700' },
   MANAGER: { label: 'Manager', className: 'bg-slate-100 text-slate-700' },
-  CHEF_OPE: { label: 'Chef opérationnel', className: 'bg-violet-100 text-violet-700' },
+  CHEF_OPE: { label: 'Chef opérationnel', className: 'bg-sky-100 text-sky-700' },
   OPERATIONNEL: { label: 'Opérationnel', className: 'bg-emerald-100 text-emerald-700' },
 };
 
@@ -27,13 +25,10 @@ const formatDate = (value: string) => {
   return `${day}/${month}/${year}`;
 };
 
-
 export const AlertDetailsModal: React.FC<AlertDetailsModalProps> = ({
   user,
   records = [],
   assignments = [],
-  _operationnels = [],
-  _partners = [],
   entityName,
   entityId,
   isDark = false,

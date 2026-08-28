@@ -125,6 +125,71 @@ La page `ModificationsPage.tsx` utilise encore un tableau de données d'exemple 
 
 ---
 
+## 6. (Donnée %) — Vue Opérationnel `RoleWorkspace` (grille 3 cartes)
+
+La vue Opérationnel affiche désormais 3 cartes dynamiques. Deux valeurs dépendent des relevés journaliers déjà renvoyés par `GET /api/dashboard/records` :
+
+- **Carte ACHAT** : statut du jour. Le frontend utilise `record.achat` du jour courant (`date = aujourd'hui`).
+  - Si un relevé existe : affiche `{achat} U`.
+  - Sinon : affiche `« À saisir »`.
+
+Aucune route supplémentaire n'est requise pour la carte ACHAT.
+
+### 6.1 Compteur CORRECTIONS (champ optionnel)
+
+La carte **CORRECTIONS** doit afficher le nombre réel de demandes de correction en cours pour le périmètre de l'opérationnel connecté.
+
+> **À implémenter côté backend** : enrichir la réponse de `GET /api/dashboard/records` (ou ajouter le champ `corrections`) avec un entier **optionnel** par jour.
+
+Format attendu dans chaque objet `DailyRecord` :
+
+```json
+{
+  "date": "2026-08-20",
+  "achat": 120,
+  "stock_journalier": 75,
+  "consommation": 45,
+  "statut": "NORMAL",
+  "corrections": 2
+}
+```
+
+- `corrections` = nombre de demandes de correction ouvertes/non résolues du jour.
+- Champ **optionnel** : si absent, le frontend affiche `0` (il ne bloque pas le rendu et n'invente aucune valeur).
+
+---
+
+## 7. `PATCH /api/affectations/:userId` (bouton « Changer poste »)
+
+- **Rôles autorisés** : `ADMIN`, `CHEF_OPE`.
+- **Objectif** : modifier le périmètre (partenaire / DSM / POS) attribué à un opérationnel depuis la carte « Suivi opérationnel » du Chef.
+- **Body attendu** :
+
+```json
+{
+  "partenaireId": "22222222-2222-4222-8222-222222222222",
+  "dsmId": "33333333-3333-4333-8333-333333333333",
+  "posId": "44444444-4444-4444-8444-444444444444"
+}
+```
+
+- **Réponse attendue** dans `data` :
+
+```json
+{
+  "userId": "5",
+  "nomComplet": "M. XYZ",
+  "partenaireId": "22222222-2222-4222-8222-222222222222",
+  "partenaireNom": "Glotelho",
+  "dsmId": "33333333-3333-4333-8333-333333333333",
+  "posId": "44444444-4444-4444-8444-444444444444"
+}
+```
+
+> Tant que cet endpoint n'existe pas, le frontend **ne fabrique aucune donnée factice** : l'action « Changer poste » n'est pas câblée côté backend de façon destructive et le bouton reste présent comme demande d'API à implémenter.
+
+---
+
 ## Rappel des types frontend consommés
 
 ```ts

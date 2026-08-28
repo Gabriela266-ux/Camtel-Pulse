@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import type { CentreHierarchy } from '../../types';
+import type { CalendarEntity, DAHierarchy, EntityType } from '../../types';
 
 interface ForecastModalProps {
   isOpen: boolean;
-  hierarchyData: CentreHierarchy;
-  defaultPosId?: string;
+  hierarchyData: DAHierarchy;
+  defaultEntityType?: EntityType;
+  defaultEntityId?: string;
   onClose: () => void;
-  onSave: (posId: string, year: number, month: number, forecasts: Record<string, number>) => void;
-  onLoadExisting?: (posId: string, year: number, month: number) => Promise<Record<string, number>>;
+  onSave: (entity: CalendarEntity, year: number, month: number, forecasts: Record<string, number>) => Promise<void> | void;
+  onLoadExisting?: (entity: CalendarEntity, year: number, month: number) => Promise<Record<string, number>>;
   isDark?: boolean;
 }
 
-function listPOS(data: CentreHierarchy) {
-  const entities: { id: string; path: string }[] = [];
+function listEntities(data: DAHierarchy, entityType?: EntityType, entityId?: string): CalendarEntity[] {
+  const entities: CalendarEntity[] = [];
   for (const da of data.da) {
+    if (entityType === 'DA' && da.id !== entityId) continue;
+    if (!entityType || entityType === 'DA') entities.push({ type: 'DA', id: da.id, label: `Partenaire · ${da.nom}` });
     for (const dsm of da.dsm) {
+      if (entityType === 'DSM' && dsm.id !== entityId) continue;
+      if (entityType !== 'POS') entities.push({ type: 'DSM', id: dsm.id, label: `DSM · ${da.nom} / ${dsm.nom}` });
       for (const pos of dsm.pos) {
-        entities.push({ id: pos.id, path: `${data.nom} / ${da.nom} / ${dsm.nom} / ${pos.nom}` });
+        if (entityType === 'POS' && pos.id !== entityId) continue;
+        entities.push({ type: 'POS', id: pos.id, label: `POS · ${da.nom} / ${dsm.nom} / ${pos.nom}` });
       }
     }
   }
@@ -26,34 +32,39 @@ function listPOS(data: CentreHierarchy) {
 export const ForecastModal: React.FC<ForecastModalProps> = ({
   isOpen,
   hierarchyData,
-  defaultPosId,
+  defaultEntityType,
+  defaultEntityId,
   onClose,
   onSave,
   onLoadExisting,
   isDark = false,
 }) => {
-  const posEntities = listPOS(hierarchyData);
-  const [posId, setPosId] = useState<string>(defaultPosId ?? posEntities[0]?.id ?? '');
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<number>(8);
+  const entities = listEntities(hierarchyData, defaultEntityType, defaultEntityId);
+  const defaultKey = defaultEntityType && defaultEntityId ? `${defaultEntityType}:${defaultEntityId}` : '';
+  const [entityKey, setEntityKey] = useState<string>(defaultKey || (entities[0] ? `${entities[0].type}:${entities[0].id}` : ''));
+  const selectedEntity = entities.find((entity) => `${entity.type}:${entity.id}` === entityKey);
+  const today = new Date();
+  const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
   const [forecasts, setForecasts] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (defaultPosId) setPosId(defaultPosId);
-  }, [defaultPosId]);
+    if (defaultEntityType && defaultEntityId) setEntityKey(`${defaultEntityType}:${defaultEntityId}`);
+  }, [defaultEntityType, defaultEntityId]);
 
   useEffect(() => {
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
-    // Calendrier d'achat réel déjà saisi pour ce POS/mois (table calendrier_achat côté backend),
-    // pré-chargé pour ne pas écraser des valeurs existantes.
     const load = async () => {
       let existingByIso: Record<string, number> = {};
-      if (onLoadExisting && posId) {
+      if (onLoadExisting && selectedEntity) {
         try {
-          existingByIso = await onLoadExisting(posId, selectedYear, selectedMonth);
+          setError(null);
+          existingByIso = await onLoadExisting(selectedEntity, selectedYear, selectedMonth);
         } catch (err) {
-          console.error('Impossible de charger le calendrier existant :', err);
+          setError(err instanceof Error ? err.message : 'Impossible de charger le calendrier existant');
         }
       }
 
@@ -69,7 +80,7 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
     };
 
     load();
-  }, [selectedYear, selectedMonth, posId]);
+  }, [selectedYear, selectedMonth, entityKey]);
 
   if (!isOpen) return null;
 
@@ -80,15 +91,22 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!posId) return;
-    onSave(posId, selectedYear, selectedMonth, forecasts);
-    onClose();
+    if (!selectedEntity || saving) return;
+
+    setError(null);
+    setSaving(true);
+    Promise.resolve(onSave(selectedEntity, selectedYear, selectedMonth, forecasts))
+      .then(() => onClose())
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Impossible d'enregistrer le calendrier d'achat");
+      })
+      .finally(() => setSaving(false));
   };
 
   const panelClass = isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-800';
   const fieldClass = isDark
-    ? 'border-slate-700 bg-slate-800 text-slate-100 placeholder:text-slate-400 focus:border-violet-500'
-    : 'border-slate-200 bg-white text-slate-800 focus:border-violet-500';
+    ? 'border-slate-700 bg-slate-800 text-slate-100 placeholder:text-slate-400 focus:border-sky-500'
+    : 'border-slate-200 bg-white text-slate-800 focus:border-sky-500';
   const panelBorder = isDark ? 'border-slate-700' : 'border-slate-100';
   const sidebarClass = isDark ? 'bg-slate-800/80' : 'bg-slate-50/50';
 
@@ -96,9 +114,7 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
       <div className={`flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl shadow-xl ${panelClass}`}>
         <div className={`flex items-center justify-between border-b px-6 py-4 ${panelBorder}`}>
-          <h2 className={`text-sm font-black uppercase tracking-wide ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
-            Calendrier d'achat mensuel
-          </h2>
+          <div className="flex items-center gap-3"><img src="/logo-camtel.png" alt="CAMTEL" className="h-10 w-10 rounded-lg object-contain" /><h2 className={`text-sm font-black uppercase tracking-wide ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>Calendrier d'achat mensuel</h2></div>
           <button
             type="button"
             onClick={onClose}
@@ -111,19 +127,17 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto p-6">
           <div>
             <label className={`mb-1 block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Point de vente (POS)
+              Entité
             </label>
-            <select
-              value={posId}
-              onChange={(e) => setPosId(e.target.value)}
-              className={`w-full rounded-lg border p-2 text-xs font-bold focus:outline-none ${fieldClass}`}
-            >
-              {posEntities.map((entity) => (
-                <option key={entity.id} value={entity.id}>
-                  {entity.path}
-                </option>
-              ))}
-            </select>
+            <div className={`w-full rounded-lg border p-2.5 text-xs font-bold ${fieldClass}`}>
+              {selectedEntity?.label || 'Aucune entité sélectionnée'}
+            </div>
+            {selectedEntity && <p className={`mt-1 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Portée : {selectedEntity.type === 'DA' ? 'Partenaire' : selectedEntity.type}</p>}
+            {entities.length === 0 && (
+              <p className="mt-1 text-xs font-medium text-rose-600">
+                Aucune entité disponible pour ce calendrier.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -183,9 +197,13 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
           </div>
 
           <div className={`flex justify-end gap-2 border-t pt-4 ${panelBorder}`}>
+            {error && (
+              <p className="mr-auto max-w-xs self-center text-xs font-medium text-rose-600">{error}</p>
+            )}
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className={`rounded-lg border px-4 py-2 text-xs font-bold ${
                 isDark ? 'border-slate-700 bg-slate-800 text-slate-200' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
               }`}
@@ -194,9 +212,10 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-violet-700"
+              disabled={!selectedEntity || entities.length === 0 || saving}
+              className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Enregistrer le calendrier d'achat
+              {saving ? 'Enregistrement…' : "Enregistrer le calendrier d'achat"}
             </button>
           </div>
         </form>

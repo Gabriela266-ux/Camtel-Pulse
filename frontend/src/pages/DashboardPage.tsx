@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Moon, SunMedium } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Bell, CheckCircle2, Home, LogOut, Menu, Moon, Search, SunMedium } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { DailyTrackingTable } from '../components/dashboard/DailyTrackingTable';
 import { EntryModal } from '../components/dashboard/EntryModal';
@@ -10,14 +10,13 @@ import { AssignmentModal } from '../components/dashboard/AssignmentModal';
 import { apiService } from '../api/services';
 
 import type {
-  CentreHierarchy,
+  DAHierarchy,
+  CalendarEntity,
   DailyRecord,
   DashboardData,
-  DSMNode,
   EntitySelection,
   EntityType,
   OperationalAssignment,
-  POSNode,
 } from '../types';
 import type { AddPartnerPayload, Operationnel } from '../types';
 import { useAuth } from '../auth/AuthContext';
@@ -25,54 +24,30 @@ import { ConsumptionChart } from '../components/dashboard/ConsumptionChart';
 import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 import { RoleWorkspace } from '../components/dashboard/RoleWorkspace';
 import { AddPartnerModal } from '../components/dashboard/AddPartnerModal';
+import { AlertDetailsModal } from '../components/dashboard/AlertDetailsModal';
+import { SnapshotsPanel } from '../components/dashboard/SnapshotsPanel';
 
 interface DashboardPageProps {
   isDark: boolean;
   onToggleTheme: () => void;
 }
 
-function addDSM(tree: CentreHierarchy, daId: string, dsm: DSMNode): CentreHierarchy {
-  return {
-    ...tree,
-    da: tree.da.map((da) => (da.id === daId ? { ...da, dsm: [...da.dsm, dsm] } : da)),
-  };
+interface ToastState {
+  type: 'success' | 'error';
+  message: string;
 }
 
-function addPOS(tree: CentreHierarchy, dsmId: string, pos: POSNode): CentreHierarchy {
-  return {
-    ...tree,
-    da: tree.da.map((da) => ({
-      ...da,
-      dsm: da.dsm.map((dsm) => (dsm.id === dsmId ? { ...dsm, pos: [...dsm.pos, pos] } : dsm)),
-    })),
-  };
-}
-
-function movePOS(tree: CentreHierarchy, posId: string, targetDsmId: string): CentreHierarchy {
-  let movedPOS: POSNode | undefined;
-  const withoutPOS: CentreHierarchy = {
-    ...tree,
-    da: tree.da.map((da) => ({
-      ...da,
-      dsm: da.dsm.map((dsm) => {
-        const found = dsm.pos.find((pos) => pos.id === posId);
-        if (found) movedPOS = found;
-        return { ...dsm, pos: dsm.pos.filter((pos) => pos.id !== posId) };
-      }),
-    })),
-  };
-
-  if (!movedPOS) return tree;
-  return addPOS(withoutPOS, targetDsmId, movedPOS);
-}
-
-function listDSM(tree: CentreHierarchy) {
+function listDSM(tree: DAHierarchy) {
   return tree.da.flatMap((da) =>
     da.dsm.map((dsm) => ({
       id: dsm.id,
       label: `${da.nom} / ${dsm.nom}`,
     })),
   );
+}
+
+function getEntryContext(entityType: EntityType, entityId: string, entityName: string) {
+  return { entityId, entityType, entityName: entityName || 'Périmètre sélectionné' };
 }
 
 function daysInCurrentMonthFor(dateStr: string) {
@@ -84,7 +59,9 @@ function daysInCurrentMonthFor(dateStr: string) {
 export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const emptyHierarchy: CentreHierarchy = { id: '', nom: '', da: [] };
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const emptyHierarchy: DAHierarchy = { id: '', nom: '', da: [] };
   const emptyDashboard: DashboardData = {
     entite_id: '',
     nom_entite: '',
@@ -99,12 +76,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     },
   };
 
-  const [hierarchyData, setHierarchyData] = useState<CentreHierarchy>(emptyHierarchy);
+  const [hierarchyData, setHierarchyData] = useState<DAHierarchy>(emptyHierarchy);
   const [dashboardData, setDashboardData] = useState<DashboardData>(emptyDashboard);
   const [selectedEntityType, setSelectedEntityType] = useState<EntityType>('DA');
+  const [selectedEntity, setSelectedEntity] = useState<EntitySelection | null>(null);
   const [records, setRecords] = useState<DailyRecord[]>([]);
+  const [loadingEntity, setLoadingEntity] = useState(false);
+  const entityRequestSequence = useRef(0);
   const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   const [referenceDate, setReferenceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [globalSearch, setGlobalSearch] = useState('');
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
@@ -112,10 +93,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [operationnels, setOperationnels] = useState<Operationnel[]>([]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
   const [addPartnerModalOpen, setAddPartnerModalOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedDetailEntity, setSelectedDetailEntity] = useState<{ id: string; nom: string } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   const role = user?.role ?? 'OPERATIONNEL';
   const canCreateEntry = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
+  // Le Manager ne peut que consulter/télécharger : l'enregistrement est réservé
+  // à l'Opérationnel, au Chef opérationnel et à l'Admin.
+  const canSaveSnapshot = role !== 'MANAGER';
   const canCreateForecast = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeoutId = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
 
   const isOperational = role === 'OPERATIONNEL';
   const visibleHierarchy =
@@ -130,7 +123,38 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
   const canAccessDA = (daId: string) => role !== 'OPERATIONNEL' || user?.partenaireId === daId;
 
-  // Charge la hiérarchie, les affectations et les opérationnels réels depuis le backend.
+  const loadSelectedEntity = async (entity: EntitySelection, month = referenceDate.slice(0, 7)): Promise<void> => {
+    const requestSequence = entityRequestSequence.current + 1;
+    entityRequestSequence.current = requestSequence;
+    setSelectedEntity(entity);
+    setSelectedEntityType(entity.type);
+    setLoadingEntity(true);
+    setRecords([]);
+    setDashboardData({
+      ...emptyDashboard,
+      entite_id: entity.id,
+      nom_entite: entity.nom,
+    });
+
+    try {
+      const [dashboard, scopedRecords] = await Promise.all([
+        apiService.getDashboard(entity.type, entity.id, month),
+        apiService.getRecords(entity.type, entity.id, month),
+      ]);
+      if (entityRequestSequence.current !== requestSequence) return;
+      if (String(dashboard.entite_id) !== String(entity.id)) {
+        throw new Error('La réponse KPI ne correspond pas à l’entité sélectionnée');
+      }
+      setDashboardData(dashboard);
+      setRecords(scopedRecords as DailyRecord[]);
+    } catch (error) {
+      if (entityRequestSequence.current !== requestSequence) return;
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Chargement de l’entité impossible.' });
+    } finally {
+      if (entityRequestSequence.current === requestSequence) setLoadingEntity(false);
+    }
+  };
+
   useEffect(() => {
     setLoadingHierarchy(true);
     apiService
@@ -139,16 +163,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         setHierarchyData(data);
         const firstDA = data.da[0];
         if (firstDA) {
-          setSelectedEntityType('DA');
-          setDashboardData((prev) => ({ ...prev, entite_id: firstDA.id, nom_entite: firstDA.nom }));
-          apiService
-            .getDashboard('DA', firstDA.id)
-            .then((d) => setDashboardData(d))
-            .catch((err) => console.error('Impossible de charger les KPI initiaux :', err));
-          apiService
-            .getRecords('DA', firstDA.id)
-            .then((data) => setRecords(data as DailyRecord[]))
-            .catch((err) => console.error("Impossible de charger l'historique journalier :", err));
+          void loadSelectedEntity({ type: 'DA', id: firstDA.id, nom: firstDA.nom });
         }
       })
       .catch((err) => console.error('Impossible de charger la hiérarchie :', err))
@@ -166,26 +181,56 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   }, []);
 
   const handleSelectEntity = (entity: EntitySelection) => {
-    setSelectedEntityType(entity.type);
-    setDashboardData((prev) => ({
-      ...prev,
-      entite_id: entity.id,
-      nom_entite: entity.nom,
-    }));
+    void loadSelectedEntity(entity);
+  };
 
-    apiService
-      .getDashboard(entity.type, entity.id)
-      .then((data) => setDashboardData(data))
-      .catch((err) => console.error('Impossible de charger les KPI de cette entité :', err));
+  const handleGlobalSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = globalSearch.trim().toLocaleLowerCase('fr');
+    if (!query) return;
+    for (const partner of visibleHierarchy.da) {
+      if (partner.nom.toLocaleLowerCase('fr').includes(query)) {
+        handleSelectEntity({ type: 'DA', id: partner.id, nom: partner.nom });
+        return;
+      }
+      for (const dsm of partner.dsm) {
+        if (dsm.nom.toLocaleLowerCase('fr').includes(query)) {
+          handleSelectEntity({ type: 'DSM', id: dsm.id, nom: dsm.nom });
+          return;
+        }
+        const pos = dsm.pos.find((item) => item.nom.toLocaleLowerCase('fr').includes(query));
+        if (pos) {
+          handleSelectEntity({ type: 'POS', id: pos.id, nom: pos.nom });
+          return;
+        }
+      }
+    }
+  };
 
-    apiService
-      .getRecords(entity.type, entity.id)
-      .then((data) => setRecords(data as DailyRecord[]))
-      .catch((err) => console.error("Impossible de charger l'historique journalier :", err));
+  const handleRefreshDashboard = async (): Promise<void> => {
+    if (!selectedEntity) return;
+    const activeMonth = referenceDate.slice(0, 7);
+    if (!window.confirm(`Vider définitivement le suivi de ${selectedEntity.nom} pour ${activeMonth} ? Cette action supprime les saisies, stocks et calendriers de la période.`)) return;
+    try {
+      const result = await apiService.clearDailyTracking(selectedEntity.type, selectedEntity.id, activeMonth);
+      await loadSelectedEntity(selectedEntity);
+      setToast({ type: 'success', message: `${result.deleted} enregistrement(s) supprimé(s).` });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Vidage impossible.' });
+    }
   };
 
   const handleAddPartner = () => {
     setAddPartnerModalOpen(true);
+    apiService
+      .getOperationnels()
+      .then((data) => setOperationnels(Array.isArray(data) ? data : []))
+      .catch((err) => console.error('Impossible de charger les opérationnels :', err));
+  };
+
+  const handleShowDetails = () => {
+    setSelectedDetailEntity({ id: dashboardData.entite_id, nom: dashboardData.nom_entite });
+    setIsDetailsOpen(true);
   };
 
   const handleCreatePartner = (payload: AddPartnerPayload) => {
@@ -193,7 +238,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .creerPartenaire(payload)
       .then(() => {
         setAddPartnerModalOpen(false);
-        // Recharge la hiérarchie et les affectations pour refléter la donnée réelle.
         apiService
           .getHierarchie()
           .then((data) => setHierarchyData(data))
@@ -206,44 +250,59 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .catch((err) => console.error('Échec de la création du partenaire :', err));
   };
 
-  const handleEditPartner = (partnerId: string) => {
+  const reloadHierarchy = async () => {
+    const data = await apiService.getHierarchie();
+    setHierarchyData(data);
+  };
+
+  const handleEditPartner = async (partnerId: string) => {
     const partner = hierarchyData.da.find((da) => da.id === partnerId);
     if (!partner) return;
 
     const nextName = window.prompt('Nouveau nom du partenaire', partner.nom);
     if (!nextName?.trim()) return;
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: tree.da.map((da) => (da.id === partnerId ? { ...da, nom: nextName.trim() } : da)),
-    }));
+    try {
+      await apiService.updatePartner(partnerId, nextName.trim());
+      await reloadHierarchy();
+      setToast({ type: 'success', message: 'Partenaire modifié et enregistré.' });
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Modification impossible.' });
+    }
   };
 
-  const handleDeletePartner = (partnerId: string) => {
+  const handleDeletePartner = async (partnerId: string) => {
     const partner = hierarchyData.da.find((da) => da.id === partnerId);
     if (!partner) return;
 
     const confirmed = window.confirm(`Supprimer le partenaire "${partner.nom}" ?`);
     if (!confirmed) return;
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: tree.da.filter((da) => da.id !== partnerId),
-    }));
+    try {
+      await apiService.deletePartner(partnerId);
+      setHierarchyData((tree) => ({ ...tree, da: tree.da.filter((da) => da.id !== partnerId) }));
+    } catch (err) {
+      console.error('Échec de la suppression définitive du partenaire :', err);
+      window.alert(err instanceof Error ? err.message : 'Suppression impossible');
+    }
   };
 
-  const handleAddDSM = (daId: string) => {
+  const handleAddDSM = async (daId: string) => {
     if (!canAccessDA(daId)) return;
 
     const nom = window.prompt('Nom du DSM à ajouter');
     if (!nom?.trim()) return;
 
-    setHierarchyData((tree) =>
-      addDSM(tree, daId, { id: String(Date.now()), nom: nom.trim(), pos: [] }),
-    );
+    try {
+      await apiService.createDsm(daId, nom.trim());
+      await reloadHierarchy();
+      setToast({ type: 'success', message: 'DSM créé et enregistré.' });
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Création du DSM impossible.' });
+    }
   };
 
-  const handleEditDSM = (dsmId: string) => {
+  const handleEditDSM = async (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) => da.dsm.some((dsm) => dsm.id === dsmId));
     if (!parentDA || !canAccessDA(parentDA.id)) return;
 
@@ -253,18 +312,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const nextName = window.prompt('Nouveau nom du DSM', dsm.nom);
     if (!nextName?.trim()) return;
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: tree.da.map((da) => ({
-        ...da,
-        dsm: da.dsm.map((item) =>
-          item.id === dsmId ? { ...item, nom: nextName.trim() } : item,
-        ),
-      })),
-    }));
+    try {
+      await apiService.updateDsm(dsmId, nextName.trim());
+      await reloadHierarchy();
+      setToast({ type: 'success', message: 'DSM modifié et enregistré.' });
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Modification du DSM impossible.' });
+    }
   };
 
-  const handleDeleteDSM = (dsmId: string) => {
+  const handleDeleteDSM = async (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) => da.dsm.some((dsm) => dsm.id === dsmId));
     if (!parentDA || !canAccessDA(parentDA.id)) return;
 
@@ -274,16 +331,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const confirmed = window.confirm(`Supprimer le DSM "${dsm.nom}" ?`);
     if (!confirmed) return;
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: tree.da.map((da) => ({
-        ...da,
-        dsm: da.dsm.filter((item) => item.id !== dsmId),
-      })),
-    }));
+    try {
+      await apiService.deleteDsm(dsmId);
+      setHierarchyData((tree) => ({
+        ...tree,
+        da: tree.da.map((da) => ({ ...da, dsm: da.dsm.filter((item) => item.id !== dsmId) })),
+      }));
+    } catch (err) {
+      console.error('Échec de la suppression définitive du DSM :', err);
+      window.alert(err instanceof Error ? err.message : 'Suppression impossible');
+    }
   };
 
-  const handleAddPOS = (dsmId: string) => {
+  const handleAddPOS = async (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.id === dsmId),
     );
@@ -292,10 +352,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const nom = window.prompt('Nom du POS à ajouter');
     if (!nom?.trim()) return;
 
-    setHierarchyData((tree) => addPOS(tree, dsmId, { id: String(Date.now()), nom: nom.trim() }));
+    try {
+      await apiService.createPos(dsmId, nom.trim());
+      await reloadHierarchy();
+      setToast({ type: 'success', message: 'POS créé et enregistré.' });
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Création du POS impossible.' });
+    }
   };
 
-  const handleEditPOS = (posId: string) => {
+  const handleEditPOS = async (posId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.pos.some((pos) => pos.id === posId)),
     );
@@ -306,21 +372,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const nextName = window.prompt('Nouveau nom du POS', pos.nom);
     if (!nextName?.trim()) return;
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: tree.da.map((da) => ({
-        ...da,
-        dsm: da.dsm.map((dsm) => ({
-          ...dsm,
-          pos: dsm.pos.map((item) =>
-            item.id === posId ? { ...item, nom: nextName.trim() } : item,
-          ),
-        })),
-      })),
-    }));
+    try {
+      await apiService.updatePos(posId, { nom: nextName.trim() });
+      await reloadHierarchy();
+      setToast({ type: 'success', message: 'POS modifié et enregistré.' });
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Modification du POS impossible.' });
+    }
   };
 
-  const handleDeletePOS = (posId: string) => {
+  const handleDeletePOS = async (posId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.pos.some((pos) => pos.id === posId)),
     );
@@ -331,19 +392,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const confirmed = window.confirm(`Supprimer le POS "${pos.nom}" ?`);
     if (!confirmed) return;
 
-    setHierarchyData((tree) => ({
-      ...tree,
-      da: tree.da.map((da) => ({
-        ...da,
-        dsm: da.dsm.map((dsm) => ({
-          ...dsm,
-          pos: dsm.pos.filter((item) => item.id !== posId),
+    try {
+      await apiService.deletePos(posId);
+      setHierarchyData((tree) => ({
+        ...tree,
+        da: tree.da.map((da) => ({
+          ...da,
+          dsm: da.dsm.map((dsm) => ({ ...dsm, pos: dsm.pos.filter((item) => item.id !== posId) })),
         })),
-      })),
-    }));
+      }));
+    } catch (err) {
+      console.error('Échec de la suppression définitive du POS :', err);
+      window.alert(err instanceof Error ? err.message : 'Suppression impossible');
+    }
   };
 
-  const handleMovePOS = (posId: string) => {
+  const handleMovePOS = async (posId: string) => {
     const dsms = listDSM(hierarchyData);
     if (dsms.length === 0) return;
 
@@ -353,47 +417,63 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     const targetDsmId = target?.trim();
     if (!targetDsmId || !dsms.some((dsm) => dsm.id === targetDsmId)) return;
 
-    setHierarchyData((tree) => movePOS(tree, posId, targetDsmId));
+    try {
+      await apiService.updatePos(posId, { dsm_id: targetDsmId });
+      await reloadHierarchy();
+      setToast({ type: 'success', message: 'POS déplacé et enregistré.' });
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Déplacement du POS impossible.' });
+    }
   };
 
-  const handleSubmitEntry = (payload: {
+  const handleSubmitEntry = async (payload: {
     entityId: string;
+    entityType: EntityType;
     date: string;
     stockJournalier: number;
     achat: number;
-  }) => {
-    // Envoi réel au backend : la saisie cible un POS précis, avec son stock
-    // journalier réel (persisté dans la table `stock`, plus jamais perdu).
-    apiService
-      .postSaisie({
-        id_pos: payload.entityId,
+  }): Promise<void> => {
+    const requestSequence = entityRequestSequence.current;
+    const activeEntity = selectedEntity;
+    if (!activeEntity) throw new Error('Aucune entité active');
+    try {
+      await apiService.postSaisie({
+        entity_type: payload.entityType,
+        entity_id: payload.entityId,
         date: payload.date,
         vente_jour: payload.achat,
         stock_journalier: payload.stockJournalier,
-      })
-      .then(() => {
-        // On rafraîchit les KPI et l'historique de l'entité actuellement affichée
-        // (pas forcément le POS visé par la saisie, si l'utilisateur regarde un DA/DSM).
-        const currentType = selectedEntityType;
-        const currentId = dashboardData.entite_id;
+      });
 
-        apiService
-          .getDashboard(currentType, currentId)
-          .then((data) => setDashboardData(data))
-          .catch((err) => console.error('Impossible de rafraîchir les KPI :', err));
-
-        apiService
-          .getRecords(currentType, currentId)
-          .then((data) => setRecords(data as DailyRecord[]))
-          .catch((err) => console.error("Impossible de rafraîchir l'historique :", err));
-      })
-      .catch((err) => console.error("Échec de l'enregistrement de la saisie :", err));
-
-    setEntryModalOpen(false);
+      const [dashboard, refreshedRecords] = await Promise.all([
+        apiService.getDashboard(activeEntity.type, activeEntity.id, payload.date.slice(0, 7)),
+        apiService.getRecords(activeEntity.type, activeEntity.id, payload.date.slice(0, 7)),
+      ]);
+      if (entityRequestSequence.current !== requestSequence) return;
+      setDashboardData(dashboard);
+      setRecords(refreshedRecords as DailyRecord[]);
+      setReferenceDate(payload.date);
+      setToast({ type: 'success', message: 'Saisie journalière enregistrée et tableau actualisé.' });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Échec de la saisie journalière.' });
+      throw error;
+    }
   };
 
   const { kpi } = dashboardData;
   const stockSecurite = (kpi.objectif_mensuel / daysInCurrentMonthFor(referenceDate)) * 3;
+
+  // Enregistre le tableau courant comme snapshot immuable en base.
+  const handleSaveSnapshot = async () => {
+    if (!selectedEntity) throw new Error('Aucune entité active');
+    await apiService.saveSnapshot({
+      entite_type: selectedEntity.type,
+      entite_id: selectedEntity.id,
+      entite_nom: selectedEntity.nom,
+      periode: referenceDate.slice(0, 7),
+      records,
+    });
+  };
 
   // Agrégats réels du mois chargé (issues des relevés /records) pour les indicateurs de
   // progression : pas de valeur en dur, tout est recalculé à partir des données backend.
@@ -403,40 +483,46 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     0,
   );
 
-  const handleSaveForecasts = (
-    posId: string,
+  const handleSaveForecasts = async (
+    entity: CalendarEntity,
     year: number,
     month: number,
     forecasts: Record<string, number>,
-  ) => {
-    // Conversion des clés jj/mm/aaaa (saisie utilisateur) vers aaaa-mm-jj (backend).
+  ): Promise<void> => {
+    const requestSequence = entityRequestSequence.current;
+    const activeEntity = selectedEntity;
+    if (!activeEntity) throw new Error('Aucune entité active');
     const isoForecasts: Record<string, number> = {};
     Object.entries(forecasts).forEach(([dateKey, value]) => {
       const [day, mon, yr] = dateKey.split('/');
       isoForecasts[`${yr}-${mon}-${day}`] = value;
     });
 
-    apiService
-      .saveCalendrierAchat(posId, isoForecasts)
-      .then(() => {
-        const currentType = selectedEntityType;
-        const currentId = dashboardData.entite_id;
-        return apiService.getRecords(currentType, currentId, `${year}-${String(month).padStart(2, '0')}`);
-      })
-      .then((data) => setRecords(data as DailyRecord[]))
-      .catch((err) => console.error("Échec de l'enregistrement du calendrier d'achat :", err));
+    try {
+      await apiService.saveCalendrierAchat(entity, isoForecasts);
+
+      const period = `${year}-${String(month).padStart(2, '0')}`;
+      const [dashboard, data] = await Promise.all([
+        apiService.getDashboard(activeEntity.type, activeEntity.id, period),
+        apiService.getRecords(activeEntity.type, activeEntity.id, period),
+      ]);
+      if (entityRequestSequence.current !== requestSequence) return;
+      setDashboardData(dashboard);
+      setRecords(data as DailyRecord[]);
+      setReferenceDate(`${period}-01`);
+      setToast({ type: 'success', message: `Calendrier d’achat enregistré : ${Object.keys(isoForecasts).length} jour(s) actualisé(s).` });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : "Échec de l’enregistrement du calendrier d’achat." });
+      throw error;
+    }
   };
 
-  const monthLabel = new Date(referenceDate).toLocaleDateString('fr-FR', {
-    month: 'long',
-    year: 'numeric',
-  });
-
   const handleSaveObjective = (value: number) => {
-    const currentType = selectedEntityType;
-    const currentId = dashboardData.entite_id;
+    if (!selectedEntity) return;
+    const currentType = selectedEntity.type;
+    const currentId = selectedEntity.id;
+    const requestSequence = entityRequestSequence.current;
 
-    // Mise à jour optimiste de l'affichage, puis persistance réelle en base.
     setDashboardData((prev) => ({
       ...prev,
       kpi: {
@@ -447,32 +533,83 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
     apiService
       .updateObjective(currentType, currentId, value)
-      .then(() => apiService.getDashboard(currentType, currentId))
-      .then((data) => setDashboardData(data))
+      .then(() => apiService.getDashboard(currentType, currentId, referenceDate.slice(0, 7)))
+      .then((data) => {
+        if (entityRequestSequence.current === requestSequence) setDashboardData(data);
+      })
       .catch((err) => console.error("Échec de l'enregistrement de l'objectif :", err));
   };
 
-  const handleAssignmentChange = (updatedAssignment: OperationalAssignment) => {
-    setAssignments((currentAssignments) =>
-      currentAssignments.map((assignment) =>
-        assignment.userId === updatedAssignment.userId ? updatedAssignment : assignment,
-      ),
-    );
-    setAssignmentToEdit(null);
+  const handleAssignmentChange = async (updatedAssignment: OperationalAssignment): Promise<void> => {
+    try {
+      const saved = await apiService.changerAffectation(String(updatedAssignment.userId), {
+        partenaireId: updatedAssignment.partenaireId,
+        dsmId: updatedAssignment.dsmId ?? null,
+        posId: updatedAssignment.posId ?? null,
+      });
+      setAssignments((currentAssignments) =>
+        currentAssignments.map((assignment) => assignment.userId === saved.userId ? saved : assignment),
+      );
+      setAssignmentToEdit(null);
+      setToast({ type: 'success', message: 'Affectation enregistrée avec les identifiants de la base.' });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : "Échec de l’affectation." });
+      throw error;
+    }
   };
+
+  const handleToggleStatus = async (assignment: OperationalAssignment) => {
+    const nextStatus = assignment.statut === 'suspendu' ? 'actif' : 'suspendu';
+    try {
+      const saved = await apiService.updateOperationnelStatus(String(assignment.userId), nextStatus);
+      setAssignments((current) =>
+        current.map((a) => (a.userId === saved.userId ? saved : a)),
+      );
+    } catch (err) {
+      console.error("Échec de la mise à jour du statut :", err);
+      apiService
+        .getAffectations()
+        .then((data) => setAssignments(data))
+        .catch(() => undefined);
+    }
+  };
+
+  const monthLabel = new Date(referenceDate).toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
     <div className={`flex min-h-screen font-sans ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      {toast && (
+        <div
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          className={`fixed right-4 top-4 z-[80] max-w-sm rounded-xl border px-4 py-3 text-sm font-bold shadow-xl ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}
+        >
+          {toast.message}
+        </div>
+      )}
+      {/* Overlay du drawer mobile */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {loadingHierarchy ? (
-        <div className="flex w-72 items-center justify-center border-r border-slate-800/20 p-6 text-sm text-slate-400">
-          Chargement de la hiérarchie…
+        <div className="flex w-full items-center justify-center p-6 text-sm text-slate-400 lg:w-72 lg:border-r lg:border-slate-800/20">
+          Chargement de la hiérarchie...
         </div>
       ) : (
         <Sidebar
           hierarchyData={visibleHierarchy}
           role={role}
+          user={user}
           onSelectEntity={handleSelectEntity}
           onAddPartner={handleAddPartner}
+          onManageOperationnels={() => document.getElementById('gestion-operationnels')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           onEditPartner={handleEditPartner}
           onDeletePartner={handleDeletePartner}
           onAddDSM={handleAddDSM}
@@ -482,23 +619,92 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
           onEditPOS={handleEditPOS}
           onDeletePOS={handleDeletePOS}
           onMovePOS={handleMovePOS}
-          selectedEntityId={dashboardData.entite_id}
+          selectedEntityId={selectedEntity?.id}
           isDark={isDark}
+          isOpen={isSidebarOpen}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+          onClose={() => setIsSidebarOpen(false)}
         />
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className={`flex h-16 items-center justify-between border-b px-6 ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-          <div>
-            <h1 className={`text-lg font-black ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{dashboardData.nom_entite}</h1>
-            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {canManageNetwork
-                ? 'Gestion DSM/POS réservée au Chef opérationnel'
-                : 'Vue opérationnelle et suivi journalier'}
-            </p>
+        <header className={`sticky top-0 z-30 flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6 ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition lg:hidden ${
+                isDark
+                  ? 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+              aria-label="Ouvrir le menu"
+              title="Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <p className="hidden text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:block">
+                Centre / {selectedEntityType}
+              </p>
+              <h1 className={`truncate text-base font-black sm:text-lg ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{dashboardData.nom_entite}</h1>
+              <p className={`hidden truncate text-xs sm:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {canManageNetwork
+                  ? 'Gestion DSM/POS réservée au Chef opérationnel'
+                  : 'Vue opérationnelle et suivi journalier'}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <form onSubmit={handleGlobalSearch} className="relative hidden xl:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(event) => setGlobalSearch(event.target.value)}
+                placeholder="Rechercher partenaire, DSM, POS…"
+                aria-label="Recherche globale"
+                className={`w-64 rounded-xl border py-2 pl-9 pr-3 text-xs outline-none ${isDark ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-400'}`}
+              />
+            </form>
+            <button
+              type="button"
+              onClick={handleShowDetails}
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${isDark ? 'border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`}
+              aria-label="Consulter les alertes"
+              title="Alertes"
+            >
+              <Bell className="h-4 w-4" aria-hidden="true" />
+              {dashboardData.kpi.statut_alerte !== 'NORMAL' && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${
+                isDark
+                  ? 'border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+              }`}
+              aria-label="Retour à l'accueil"
+              title="Retour à l'accueil"
+            >
+              <Home className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+              className={`hidden h-9 w-9 items-center justify-center rounded-lg border transition lg:inline-flex ${
+                isDark
+                  ? 'border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+              }`}
+              aria-label={isSidebarCollapsed ? 'Ouvrir la sidebar' : 'Réduire la sidebar'}
+              title={isSidebarCollapsed ? 'Ouvrir la sidebar' : 'Réduire la sidebar'}
+            >
+              <Menu className="h-4 w-4" />
+            </button>
             <button
               type="button"
               onClick={onToggleTheme}
@@ -511,14 +717,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
               title="Basculer le thème"
             >
               {isDark ? <SunMedium className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              {isDark ? 'Clair' : 'Sombre'}
+              <span className="hidden sm:inline">{isDark ? 'Clair' : 'Sombre'}</span>
             </button>
 
             <input
               type="date"
               value={referenceDate}
-              onChange={(event) => setReferenceDate(event.target.value)}
-              className={`rounded-lg border px-3 py-2 text-xs ${
+              onChange={(event) => {
+                const nextDate = event.target.value;
+                setReferenceDate(nextDate);
+                if (selectedEntity && nextDate) void loadSelectedEntity(selectedEntity, nextDate.slice(0, 7));
+              }}
+              className={`rounded-lg border px-2.5 py-2 text-xs ${
                 isDark
                   ? 'border-slate-700 bg-slate-800 text-slate-100'
                   : 'border-slate-200 bg-slate-50 text-slate-700'
@@ -535,7 +745,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
                 Espace Admin
               </button>
             )}
-            <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${isDark ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'}`}>
+            <span className={`hidden max-w-[180px] truncate rounded-full px-3 py-1.5 text-xs font-bold md:inline ${isDark ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'}`}>
               {user?.nom_complet} ({user?.role})
             </span>
             <button
@@ -550,37 +760,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
           </div>
         </header>
 
-        <main className="space-y-6 overflow-y-auto p-6">
+        <main className="space-y-4 overflow-x-hidden overflow-y-auto p-4 sm:space-y-6 sm:p-6">
           <RoleWorkspace
             role={role}
             user={user}
             operationnels={operationnels}
             assignments={assignments}
             partners={hierarchyData.da}
+            records={records}
+            onReassign={(assignment) => setAssignmentToEdit(assignment)}
+            onToggleStatus={handleToggleStatus}
           />
 
-          {/* Bannière d'alerte dynamique */}
+          {loadingEntity && (
+            <div role="status" className="panel-soft px-4 py-3 text-sm font-semibold text-slate-500">
+              Chargement des données de {selectedEntity?.nom ?? 'l’entité'}…
+            </div>
+          )}
+
           {dashboardData?.kpi?.statut_alerte && dashboardData.kpi.statut_alerte !== 'NORMAL' ? (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm">
-              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-black text-white">! ALERTE</span>
-              <p className="flex-1 font-medium">
-                {dashboardData.nom_entite ? `${dashboardData.nom_entite} est sous surveillance.` : 'Une entité est sous surveillance.'}
-              </p>
+            <div className="ui-alert border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-100" role="alert">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black uppercase tracking-wide">Surveillance requise</p>
+                <p className="mt-0.5 text-xs opacity-80">{dashboardData.nom_entite ? `${dashboardData.nom_entite} présente un indicateur critique nécessitant une vérification.` : 'Une entité présente un indicateur critique.'}</p>
+              </div>
               <button
                 type="button"
-                onClick={() => navigate('/modifications')}
-                className="font-bold text-rose-700 underline underline-offset-2"
+                onClick={handleShowDetails}
+                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 dark:text-rose-300 dark:hover:bg-rose-900/50"
               >
-                Voir détails →
+                Voir les détails <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm">
-              <p className="font-medium">
-                {dashboardData?.nom_entite 
-                  ? `Statut de ${dashboardData.nom_entite} : Normal` 
-                  : 'Sélectionnez une entité pour afficher les alertes.'}
-              </p>
+            <div className="ui-alert border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-100" role="status">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <span className="text-xs font-semibold">
+                {dashboardData?.nom_entite
+                  ? `Statut de ${dashboardData.nom_entite} : Normal`
+                  : 'Statut : Normal - Aucune alerte sur le périmètre'}
+              </span>
             </div>
           )}
 
@@ -600,7 +822,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
                   onClick={() => setObjectiveModalOpen(true)}
                   className="ui-button-secondary mt-4 w-full justify-center"
                 >
-                  Modifier l’objectif →
+                  Modifier l'objectif →
                 </button>
               )}
             </div>
@@ -655,24 +877,37 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
           <DailyTrackingTable
             records={records}
-            canCreateEntry={canCreateEntry}
+            canCreateEntry={canCreateEntry && !loadingEntity}
             onNewEntry={() => setEntryModalOpen(true)}
-            canCreateForecast={canCreateForecast}
+            canCreateForecast={canCreateForecast && !loadingEntity}
             onNewForecast={() => setForecastModalOpen(true)}
+            onRefresh={handleRefreshDashboard}
             isDark={isDark}
             stockSecurite={stockSecurite}
+            canSave={canSaveSnapshot}
+            onSaveSnapshot={handleSaveSnapshot}
           />
+
+          {/* Tableaux stockés : consultation + téléchargement (Admin / Manager / Chef). */}
+          {(role === 'ADMIN' || role === 'MANAGER' || role === 'CHEF_OPE') && (
+            <SnapshotsPanel isDark={isDark} />
+          )}
         </main>
       </div>
 
-      {entryModalOpen && (
-        <EntryModal
-          defaultDate={referenceDate}
-          hierarchyData={visibleHierarchy}
-          onClose={() => setEntryModalOpen(false)}
-          onSubmit={handleSubmitEntry}
-        />
-      )}
+      {entryModalOpen && (() => {
+        const context = getEntryContext(selectedEntity?.type ?? selectedEntityType, selectedEntity?.id ?? '', selectedEntity?.nom ?? '');
+        return (
+          <EntryModal
+            defaultDate={referenceDate}
+            entityName={context.entityName}
+            defaultEntityId={context.entityId}
+            defaultEntityType={context.entityType}
+            onClose={() => setEntryModalOpen(false)}
+            onSubmit={handleSubmitEntry}
+          />
+        );
+      })()}
 
       <ObjectiveModal
         isOpen={objectiveModalOpen}
@@ -685,10 +920,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       <ForecastModal
         isOpen={forecastModalOpen}
         hierarchyData={visibleHierarchy}
-        defaultPosId={selectedEntityType === 'POS' ? dashboardData.entite_id : undefined}
+        defaultEntityType={selectedEntity?.type}
+        defaultEntityId={selectedEntity?.id}
         onClose={() => setForecastModalOpen(false)}
         onSave={handleSaveForecasts}
-        onLoadExisting={(posId, year, month) => apiService.getCalendrierAchat(posId, year, month)}
+        onLoadExisting={(entity, year, month) => apiService.getCalendrierAchat(entity, year, month)}
         isDark={isDark}
       />
 
@@ -704,9 +940,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       <AddPartnerModal
         isOpen={addPartnerModalOpen}
         operationnels={operationnels}
+        chefName={user?.nom_complet}
+        isDark={isDark}
         onClose={() => setAddPartnerModalOpen(false)}
         onSubmit={handleCreatePartner}
       />
+
+      {isDetailsOpen && selectedDetailEntity && (
+        <AlertDetailsModal
+          user={user}
+          records={records}
+          assignments={assignments}
+          entityName={selectedDetailEntity.nom}
+          entityId={selectedDetailEntity.id}
+          isDark={isDark}
+          onClose={() => {
+            setIsDetailsOpen(false);
+            setSelectedDetailEntity(null);
+          }}
+        />
+      )}
     </div>
   );
 };

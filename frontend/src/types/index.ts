@@ -15,7 +15,7 @@ export interface DANode {
   dsm: DSMNode[];
 }
 
-export interface CentreHierarchy {
+export interface DAHierarchy {
   id: string;
   nom: string;
   da: DANode[];
@@ -23,10 +23,15 @@ export interface CentreHierarchy {
 
 export type AppRole = 'ADMIN' | 'MANAGER' | 'CHEF_OPE' | 'OPERATIONNEL';
 
-export type EntityType = 'CENTRE' | 'DA' | 'DSM' | 'POS';
+export type EntityType = 'DA' | 'DSM' | 'POS';
+
+export interface CalendarEntity {
+  type: EntityType;
+  id: string;
+  label: string;
+}
 
 export type EntitySelection =
-  | { type: 'CENTRE'; id: string; nom: string }
   | { type: 'DA'; id: string; nom: string }
   | { type: 'DSM'; id: string; nom: string }
   | { type: 'POS'; id: string; nom: string };
@@ -50,12 +55,14 @@ export interface DashboardData {
 }
 
 export interface OperationalAssignment {
-  userId: number;
-  nomComplet: string;
+  userId: string;
+  nomComplet?: string;
+  email?: string;
   partenaireId: string;
   partenaireNom: string;
   dsmId?: string;
   posId?: string;
+  statut?: string;
 }
 
 export interface DailyRecord {
@@ -71,7 +78,7 @@ export interface DailyRecord {
 }
 export interface Operationnel {
   id: string;
-  nom_complet: string;
+  nom_complet?: string;
   email?: string;
   role?: string;
   partenaireId?: string;
@@ -79,7 +86,8 @@ export interface Operationnel {
 
 export interface AddPartnerPayload {
   nom: string;
-  masterSim?: string;
+  masterSim: string;
+  region: string;
   attribution: {
     type: 'OPERATIONNEL' | 'CHEF';
     userId?: string;

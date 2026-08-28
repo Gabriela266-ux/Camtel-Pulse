@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CalendarDays, Filter, Moon, SunMedium } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import type { AppRole } from '../types';
+import { apiService } from '../api/services';
 
 interface ModificationsPageProps {
   isDark: boolean;
@@ -16,71 +16,27 @@ type ModificationType =
   | 'SAISIE_CREEE'
   | 'SAISIE_CORRIGEE'
   | 'CORRECTION_VALIDEE'
-  | 'OPERATIONNEL_AFFECTE';
+  | 'OPERATIONNEL_AFFECTE'
+  | 'OPERATIONNEL_SUSPENDU'
+  | 'OPERATIONNEL_REACTIVE';
 
-interface Modification {
-  id: number;
+// Données chargées depuis GET /api/dashboard/audit (plus de mock).
+// Le backend renvoie des objets déjà mappés vers ce contrat ({ auteur, roleAuteur, type, ... }).
+interface RawModification {
+  id: string;
   date: string;
-  auteurId: number;
+  auteurId?: string | null;
   auteur: string;
-  roleAuteur: AppRole;
-  type: ModificationType;
-  partenaireId: number;
-  partenaire: string;
-  entite: string;
-  detail: string;
-  ancienneValeur?: string;
-  nouvelleValeur?: string;
-  statut: 'EFFECTUEE' | 'EN_ATTENTE' | 'VALIDEE' | 'REFUSEE';
+  roleAuteur: string;
+  type: string;
+  partenaireId?: string | null;
+  partenaire?: string | null;
+  entite?: string | null;
+  detail?: string | null;
+  statut: string;
 }
 
-const mockModifications: Modification[] = [
-  {
-    id: 1,
-    date: '2026-08-13T09:25:00',
-    auteurId: 1,
-    auteur: 'Opérationnel Glotelho',
-    roleAuteur: 'OPERATIONNEL',
-    type: 'DSM_AJOUTE',
-    partenaireId: 101,
-    partenaire: 'Glotelho',
-    entite: 'DSM Bonabéri',
-    detail: 'Un DSM a été ajouté sous le partenaire Glotelho.',
-    nouvelleValeur: 'DSM Bonabéri',
-    statut: 'EFFECTUEE',
-  },
-  {
-    id: 2,
-    date: '2026-08-13T10:10:00',
-    auteurId: 2,
-    auteur: 'Chef Opérationnel CPDSM',
-    roleAuteur: 'CHEF_OPE',
-    type: 'CORRECTION_VALIDEE',
-    partenaireId: 101,
-    partenaire: 'Glotelho',
-    entite: 'POS Marché Central',
-    detail: 'Une correction de saisie journalière a été validée.',
-    ancienneValeur: 'Achat : 640 U',
-    nouvelleValeur: 'Achat : 720 U',
-    statut: 'VALIDEE',
-  },
-  {
-    id: 3,
-    date: '2026-08-12T15:30:00',
-    auteurId: 3,
-    auteur: 'Chef Opérationnel CPDSM',
-    roleAuteur: 'CHEF_OPE',
-    type: 'OPERATIONNEL_AFFECTE',
-    partenaireId: 102,
-    partenaire: 'Master Color',
-    entite: 'Mme Ngono',
-    detail: 'Un opérationnel a été affecté au partenaire Master Color.',
-    nouvelleValeur: 'Partenaire : Master Color',
-    statut: 'EFFECTUEE',
-  },
-];
-
-const labels: Record<ModificationType, string> = {
+const labels: Record<string, string> = {
   DSM_AJOUTE: 'Ajout DSM',
   POS_AJOUTE: 'Ajout POS',
   POS_DEPLACE: 'Déplacement POS',
@@ -88,9 +44,11 @@ const labels: Record<ModificationType, string> = {
   SAISIE_CORRIGEE: 'Correction de saisie',
   CORRECTION_VALIDEE: 'Validation de correction',
   OPERATIONNEL_AFFECTE: 'Affectation opérationnel',
+  OPERATIONNEL_SUSPENDU: 'Suspension opérationnel',
+  OPERATIONNEL_REACTIVE: 'Réactivation opérationnel',
 };
 
-const statusClasses = {
+const statusClasses: Record<string, string> = {
   EFFECTUEE: 'bg-sky-50 text-sky-700 border-sky-200',
   EN_ATTENTE: 'bg-amber-50 text-amber-700 border-amber-200',
   VALIDEE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -103,30 +61,49 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
 
   const [period, setPeriod] = useState('MONTH');
   const [type, setType] = useState<'ALL' | ModificationType>('ALL');
+  const [modifications, setModifications] = useState<RawModification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Chargement réel depuis GET /api/dashboard/audit (plus de mock).
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    apiService
+      .getAudit()
+      .then((data) => {
+        if (!cancelled) setModifications(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error("Impossible de charger l'historique :", err);
+        if (!cancelled) setModifications([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visibleModifications = useMemo(() => {
     const role = user?.role;
-    const partenaireId = user?.partenaireId;
 
-    return mockModifications.filter((modification) => {
+    return modifications.filter((modification) => {
       if (role === 'OPERATIONNEL') {
-        return (
-          String(modification.auteurId) === String(user?.id) &&
-          String(modification.partenaireId) === String(partenaireId)
-        );
+        return String(modification.auteurId) === String(user?.id);
       }
-
       return true;
     });
-  }, [user]);
+  }, [user, modifications]);
 
   const filteredModifications = useMemo(() => {
-    const now = new Date('2026-08-13T23:59:59');
+    const now = new Date();
+    const todayKey = now.toISOString().slice(0, 10);
 
     return visibleModifications.filter((modification) => {
       const modificationDate = new Date(modification.date);
-      const isToday =
-        modificationDate.toISOString().slice(0, 10) === '2026-08-13';
+      const modificationKey = modificationDate.toISOString().slice(0, 10);
+      const isToday = modificationKey === todayKey;
 
       const isInLast7Days =
         now.getTime() - modificationDate.getTime() <= 7 * 24 * 60 * 60 * 1000;
@@ -151,7 +128,7 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
   }, [period, type, visibleModifications]);
 
   return (
-    <div className={`min-h-screen p-6 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+    <div className={`min-h-screen p-4 sm:p-6 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
       <div className="mx-auto max-w-7xl">
         <div className="mb-5 flex items-center justify-between gap-3">
           <button
@@ -270,25 +247,20 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
                     </td>
 
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-bold text-violet-700">{labels[modification.type]}</span>
+                      <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-bold text-violet-700">
+                        {labels[modification.type] ?? modification.type}
+                      </span>
                     </td>
 
-                    <td className="px-4 py-3 text-slate-600">{modification.partenaire}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-700">{modification.entite}</td>
+                    <td className="px-4 py-3 text-slate-600">{modification.partenaire || '—'}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-700">{modification.entite || '—'}</td>
 
                     <td className="max-w-sm px-4 py-3">
-                      <p className="text-xs text-slate-600">{modification.detail}</p>
-
-                      {(modification.ancienneValeur || modification.nouvelleValeur) && (
-                        <div className="mt-1 space-y-0.5 text-xs">
-                          {modification.ancienneValeur && <p className="text-rose-600">Avant : {modification.ancienneValeur}</p>}
-                          {modification.nouvelleValeur && <p className="text-emerald-600">Après : {modification.nouvelleValeur}</p>}
-                        </div>
-                      )}
+                      <p className="text-xs text-slate-600">{modification.detail || '—'}</p>
                     </td>
 
                     <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-1 text-xs font-bold ${statusClasses[modification.statut]}`}>
+                      <span className={`rounded-full border px-2 py-1 text-xs font-bold ${statusClasses[modification.statut] ?? ''}`}>
                         {modification.statut}
                       </span>
                     </td>
@@ -298,7 +270,7 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
                 {filteredModifications.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
-                      Aucune modification ne correspond aux filtres choisis.
+                      {loading ? 'Chargement de l\u2019historique…' : 'Aucune modification ne correspond aux filtres choisis.'}
                     </td>
                   </tr>
                 )}

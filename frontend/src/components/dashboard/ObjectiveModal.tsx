@@ -33,10 +33,10 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
+          <div className="flex items-center gap-3"><img src="/logo-camtel.png" alt="CAMTEL" className="h-10 w-10 rounded-lg object-contain" /><div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-600">Objectif mensuel</p>
             <h2 className="mt-1 text-lg font-black text-slate-900">{monthLabel}</h2>
-          </div>
+          </div></div>
 
           <button
             type="button"

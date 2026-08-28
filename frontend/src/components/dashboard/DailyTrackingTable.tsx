@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { Eraser, FileSpreadsheet, FileText, Save } from 'lucide-react';
 import type { DailyRecord } from '../../types';
 
 interface DailyTrackingTableProps {
@@ -12,6 +12,10 @@ interface DailyTrackingTableProps {
   isDark?: boolean;
   purchaseLabel?: string;
   stockSecurite?: number;
+  /** Sauvegarde activée (Opérationnel / Chef / Admin). */
+  canSave?: boolean;
+  onSaveSnapshot?: () => Promise<void>;
+  onRefresh?: () => Promise<void> | void;
 }
 
 const formatDate = (value: string) => {
@@ -122,9 +126,15 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
   isDark = false,
   purchaseLabel = 'Achat (U)',
   stockSecurite = 0,
+  canSave = false,
+  onSaveSnapshot,
+  onRefresh,
 }) => {
   const [downloadType, setDownloadType] = useState<'xlsx' | 'pdf' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'ok' | 'error' | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const headers = [
     'Date',
@@ -140,6 +150,47 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
   ];
 
   const cumulMap = useMemo(() => computeCumulCalendrier(records), [records]);
+
+  // Totaux par colonne numérique (affichés en pied de tableau et transmis au serveur).
+  const totals = useMemo(() => {
+    const stock = records.reduce((s, r) => s + Number(r.stock_journalier || 0), 0);
+    const prevision = records.reduce((s, r) => s + Number(r.prevision_ca || 0), 0);
+    const achat = records.reduce((s, r) => s + Number(r.achat || 0), 0);
+    const cumulFinal = records.length ? Number(records[records.length - 1].cumul_achat || 0) : 0;
+    return {
+      stock: Math.round(stock * 100) / 100,
+      prevision: Math.round(prevision * 100) / 100,
+      achat: Math.round(achat * 100) / 100,
+      cumul: Math.round(cumulFinal * 100) / 100,
+      ecartStock: records.reduce((s, r) => s + (r.stock_journalier !== null ? r.stock_journalier - stockSecurite : 0), 0),
+      ecartCalendrier: records.reduce((s, r) => s + (r.cumul_achat - (cumulMap.get(r.date) ?? 0)), 0),
+    };
+  }, [records, stockSecurite, cumulMap]);
+
+  const handleSave = async () => {
+    if (!onSaveSnapshot || saving || records.length === 0) return;
+    setSaving(true);
+    setSaveStatus(null);
+    try {
+      await onSaveSnapshot();
+      setSaveStatus('ok');
+    } catch (error) {
+      console.error('Échec de l\'enregistrement du tableau :', error);
+      setSaveStatus('error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const openPrintWindow = () => {
     const tableRows = [
@@ -236,6 +287,23 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing || records.length === 0}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDark
+                  ? 'border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Supprimer les données enregistrées de l’entité et de la période actives"
+            >
+              <Eraser className="h-3.5 w-3.5" />
+              {refreshing ? 'Vidage…' : 'Vider'}
+            </button>
+          )}
+
           {canCreateEntry && (
             <button
               type="button"
@@ -250,11 +318,30 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
             <button
               type="button"
               onClick={onNewForecast}
-              className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100"
+              className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100"
             >
               + Calendrier d'achat
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave || records.length === 0 || saving}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
+              isDark
+                ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20'
+                : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+            }`}
+            title={
+              canSave
+                ? 'Enregistrer ce tableau dans la base (immuable)'
+                : 'La consultation / le téléchargement sont réservés à la direction (lecture seule)'
+            }
+          >
+            <Save className="h-4 w-4" />
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
 
           <button
             type="button"
@@ -296,6 +383,18 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
       {downloadError && (
         <div className="border-b border-red-200 bg-red-50 px-5 py-2 text-xs font-semibold text-red-700">
           {downloadError}
+        </div>
+      )}
+
+      {saveStatus === 'ok' && (
+        <div className="flex items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-5 py-2 text-xs font-semibold text-emerald-700">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+          Tableau enregistré dans la base. Il est consultable par l&apos;admin et le manager (lecture seule).
+        </div>
+      )}
+      {saveStatus === 'error' && (
+        <div className="border-b border-red-200 bg-red-50 px-5 py-2 text-xs font-semibold text-red-700">
+          Impossible d&apos;enregistrer le tableau. Réessayez.
         </div>
       )}
 
@@ -377,6 +476,36 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
               );
             })}
           </tbody>
+          <tfoot>
+            <tr className={isDark ? 'bg-slate-800/90' : 'bg-slate-100'}>
+              <td className={`whitespace-nowrap border-t px-4 py-2.5 text-[10px] font-black uppercase tracking-wide ${isDark ? 'border-slate-700 text-slate-300' : 'border-slate-200 text-slate-500'}`}>
+                TOTAL
+              </td>
+              <td className={`border-t px-4 py-2.5 font-mono font-bold ${isDark ? 'border-slate-700 text-slate-100' : 'border-slate-200 text-slate-800'}`}>
+                {totals.stock.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 font-mono font-bold ${totals.ecartStock >= 0 ? 'text-emerald-600' : 'text-rose-600'} ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                {totals.ecartStock >= 0 ? '+' : ''}{totals.ecartStock.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`} />
+              <td className={`border-t px-4 py-2.5 font-mono font-bold ${isDark ? 'border-slate-700 text-slate-100' : 'border-slate-200 text-slate-800'}`}>
+                {totals.prevision.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 font-mono font-bold ${isDark ? 'border-slate-700 text-slate-100' : 'border-slate-200 text-slate-800'}`}>
+                {totals.prevision.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 font-mono font-black ${isDark ? 'border-slate-700 text-sky-300' : 'border-slate-200 text-sky-700'}`}>
+                {totals.achat.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 font-mono font-bold ${isDark ? 'border-slate-700 text-slate-100' : 'border-slate-200 text-slate-800'}`}>
+                {totals.cumul.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 font-mono font-bold ${totals.ecartCalendrier >= 0 ? 'text-emerald-600' : 'text-rose-600'} ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                {totals.ecartCalendrier >= 0 ? '+' : ''}{totals.ecartCalendrier.toLocaleString('fr-FR')}
+              </td>
+              <td className={`border-t px-4 py-2.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`} />
+            </tr>
+          </tfoot>
         </table>
       </div>
     </section>

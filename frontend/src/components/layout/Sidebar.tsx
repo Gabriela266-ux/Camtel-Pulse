@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Store, Search, X } from 'lucide-react';
+import { ChevronLeft, Store, Search, UserCog, X } from 'lucide-react';
 import { HierarchyTree } from '../hierarchy/HierarchyTree';
-import type { CentreHierarchy, EntitySelection } from '../../types';
+import type { DAHierarchy, EntitySelection } from '../../types';
+import type { User } from '../../auth/AuthContext';
 
 interface SidebarProps {
-  hierarchyData: CentreHierarchy;
+  hierarchyData: DAHierarchy;
   role: string;
+  user?: User | null;
   onSelectEntity: (entity: EntitySelection) => void;
   onAddPartner: () => void;
+  onManageOperationnels?: () => void;
   onEditPartner: (partnerId: string) => void;
   onDeletePartner: (partnerId: string) => void;
   onAddDSM: (daId: string) => void;
@@ -19,13 +22,21 @@ interface SidebarProps {
   onMovePOS: (posId: string) => void;
   selectedEntityId?: string;
   isDark?: boolean;
+  /** Drawer mobile : ouvert ? (ignoré sur desktop) */
+  isOpen?: boolean;
+  /** Ferme le drawer mobile après une action. */
+  onClose?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   hierarchyData,
   role,
+  user,
   onSelectEntity,
   onAddPartner,
+  onManageOperationnels,
   onEditPartner,
   onDeletePartner,
   onAddDSM,
@@ -37,9 +48,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMovePOS,
   selectedEntityId,
   isDark = false,
+  isOpen = false,
+  onClose,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Sélection d'entité : referme le drawer sur mobile.
+  const handleSelectEntity = (entity: EntitySelection) => {
+    onSelectEntity(entity);
+    onClose?.();
+  };
 
   const shellClass = isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200';
   const headerBorderClass = isDark ? 'border-slate-700' : 'border-slate-100';
@@ -54,13 +74,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`relative flex h-screen flex-col border-r transition-all duration-300 ease-in-out ${shellClass} ${
-        isCollapsed ? 'w-16' : 'w-72'
-      }`}
+      className={`fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r shadow-xl transition-transform duration-300 ease-in-out lg:relative lg:z-auto lg:translate-x-0 lg:shadow-none ${shellClass} ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      } ${isCollapsed ? 'lg:w-16' : 'lg:w-72'} w-72`}
     >
       <div className={`border-b p-4 ${headerBorderClass}`}>
         <div className="mb-4 flex items-center justify-between gap-2">
-          <div className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border shadow-sm ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-white'}`}>
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border shadow-sm ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-white'}`}>
             <img src="/logo-camtel.png" alt="Logo Camtel" className="h-full w-full object-contain" />
           </div>
 
@@ -73,8 +93,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
+          {/* Fermer : uniquement en drawer mobile */}
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={onClose}
+            title="Fermer le menu"
+            aria-label="Fermer le menu"
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 lg:hidden ${buttonClass} ${isDark ? 'focus:ring-sky-500/40' : 'focus:ring-sky-200'}`}
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          <button
+            onClick={onToggleCollapse}
             title={isCollapsed ? 'Ouvrir la sidebar' : 'Réduire la sidebar'}
             className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 ${buttonClass} ${isDark ? 'focus:ring-sky-500/40' : 'focus:ring-sky-200'}`}
           >
@@ -103,19 +133,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               <div className={`mt-2 rounded-lg border px-2.5 py-2 text-xs leading-snug ${infoClass}`}>
-                {role === 'ADMIN' && 'Accès complet CPDSM 1'}
+                {role === 'ADMIN' && `Accès complet ${hierarchyData.nom}`}
                 {role === 'MANAGER' && 'Lecture seule sur tous les indicateurs'}
-                {role === 'CHEF_OPE' && 'CPDSM 1 - Glotelho et Master Color'}
-                {role === 'OPERATIONNEL' && 'Partenaire affecté - Glotelho'}
+                {role === 'CHEF_OPE' && `${hierarchyData.nom} - Gestion opérationnelle`}
+                {role === 'OPERATIONNEL' && (() => {
+                  const partner = user?.partenaireId
+                    ? hierarchyData.da.find((da) => da.id === user.partenaireId)
+                    : null;
+                  return partner
+                    ? `Partenaire affecté - ${partner.nom}`
+                    : 'Partenaire non assigné';
+                })()}
               </div>
 
-              {(role === 'ADMIN' || role === 'CHEF_OPE') && (
+              {role === 'ADMIN' && (
                 <button
                   type="button"
                   onClick={onAddPartner}
                   className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold ${isDark ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20' : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
                 >
                   + Ajouter partenaire
+                </button>
+              )}
+              {role === 'CHEF_OPE' && (
+                <button
+                  type="button"
+                  onClick={() => { onManageOperationnels?.(); onClose?.(); }}
+                  className={`mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-colors duration-200 focus:outline-none focus:ring-2 ${isDark ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 focus:ring-sky-500/40' : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 focus:ring-sky-200'}`}
+                >
+                  <UserCog className="h-4 w-4" />
+                  Gérer les opérationnels
                 </button>
               )}
             </div>
@@ -155,7 +202,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <HierarchyTree
               data={hierarchyData}
               role={role}
-              onSelectEntity={onSelectEntity}
+              onSelectEntity={handleSelectEntity}
               onAddPartner={onAddPartner}
               onEditPartner={onEditPartner}
               onDeletePartner={onDeletePartner}
@@ -182,3 +229,5 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
+
+

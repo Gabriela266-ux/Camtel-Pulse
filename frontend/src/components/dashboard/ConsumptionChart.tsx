@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Activity } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -24,22 +25,44 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
 }) => {
   const [period, setPeriod] = useState<7 | 14 | 30>(7);
 
-  const visibleRecords = records.slice(-period);
+  // Index date -> enregistrement pour un accès O(1) aux relevés journaliers réels.
+  const recordsByDate = new Map(records.map((record) => [record.date, record]));
+
+  // Génère les `period` derniers jours ouvrés (date du jour incluse).
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const lastDates: string[] = [];
+  for (let i = period - 1; i >= 0; i -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - i);
+    lastDates.push(day.toISOString().slice(0, 10));
+  }
+
+  // Règle métier : sans stock journalier saisi pour le jour n, aucune consommation n'est
+  // calculable — la barre affiche 0 jusqu'à la saisie. Aucune valeur inventée n'est injectée.
+  const chartData = lastDates.map((date, index) => {
+    const record = recordsByDate.get(date);
+    const previous = recordsByDate.get(lastDates[index - 1]);
+
+    let consommation = 0;
+    if (record && record.stock_journalier != null) {
+      // Consommation (n) = Stock jour (n−1) + Réalisation jour (n−1) − Stock jour (n).
+      const previousStock = previous?.stock_journalier ?? 0; // jour n−1 absent → stock initial ou 0
+      const previousAchat = previous?.achat ?? 0; // Réalisation du jour n−1
+      consommation = Math.max(0, previousStock + previousAchat - record.stock_journalier);
+    }
+
+    return {
+      date: date.split('-')[2],
+      consommation,
+      stockSecurite,
+    };
+  });
 
   // Achat cumulé réel sur la période sélectionnée (somme des achats enregistrés).
-  const totalAchatPeriod = visibleRecords.reduce(
-    (sum, record) => sum + (record.achat ?? 0),
-    0,
-  );
-
-  const chartData = visibleRecords.map((record) => ({
-    date: record.date.split('-')[2],
-    // Consommation (n) = Stock jour (n-1) + Réalisation jour (n-1) − Stock jour (n).
-    // L'endpoint backend (/dashboard/records) renvoie déjà ce calcul réel (champ `consommation`) ;
-    // on l'utilise tel quel, aucune valeur factice n'est injectée.
-    consommation: record.consommation ?? 0,
-    stockSecurite,
-  }));
+  const totalAchatPeriod = [...recordsByDate.values()]
+    .filter((record) => lastDates.includes(record.date))
+    .reduce((sum, record) => sum + (record.achat ?? 0), 0);
 
   const sectionClass = isDark
     ? 'rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg'
@@ -56,8 +79,9 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
     <section className={sectionClass}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className={`text-sm font-black ${titleClass}`}>
-            📊 Consommation — {period} derniers jours
+          <h3 className={`flex items-center gap-2 text-sm font-black ${titleClass}`}>
+            <Activity className="h-4 w-4 text-sky-600" aria-hidden="true" />
+            Consommation — {period} derniers jours
           </h3>
           <p className="mt-1 text-xs text-slate-500">
             Consommation = Stock j−1 + Achat j−1 − Stock j (données réelles des relevés)
