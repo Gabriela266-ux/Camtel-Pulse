@@ -1,4 +1,4 @@
-const { calculateSecurityStock, buildOrganizationTree } = require('../src/utils/business');
+const { calculateSecurityStock } = require('../src/utils/business');
 
 describe('Business rules', () => {
   test('calculateSecurityStock uses the reference formula', () => {
@@ -7,12 +7,9 @@ describe('Business rules', () => {
     expect(value).toBeCloseTo(290322.58, 2);
   });
 
-  test('buildOrganizationTree groups Centre, DA, DSM and POS in a realistic hierarchy', () => {
-    const tree = buildOrganizationTree();
-
-    expect(tree.length).toBeGreaterThan(0);
-    expect(tree[0].clients.length).toBe(2);
-    expect(tree[0].clients[0].dsms.length).toBeGreaterThan(0);
-    expect(tree[0].clients[0].dsms[0].pos.length).toBeGreaterThan(0);
+  test('calculateSecurityStock returns 0 for non-positive or invalid inputs', () => {
+    expect(calculateSecurityStock(0, 31)).toBe(0);
+    expect(calculateSecurityStock(-5, 31)).toBe(0);
+    expect(calculateSecurityStock(1000, 0)).toBe(0);
   });
 });

@@ -2,7 +2,7 @@
 const bcrypt = require('bcryptjs');
 
 // Réinitialise les 4 comptes de démonstration au même mot de passe connu
-// ("password123"), quel que soit ce que les migrations précédentes ont pu
+// ("Admin123!"), quel que soit ce que les migrations précédentes ont pu
 // changer entre-temps. Objectif : plus aucune incertitude avant la démo.
 const DEMO_ACCOUNTS = [
   'admin@camtel.local',
@@ -13,7 +13,7 @@ const DEMO_ACCOUNTS = [
 
 module.exports = {
   async up(queryInterface) {
-    const hashed = await bcrypt.hash('password123', 10);
+    const hashed = await bcrypt.hash('Admin123!', 10);
 
     for (const email of DEMO_ACCOUNTS) {
       await queryInterface.bulkUpdate(

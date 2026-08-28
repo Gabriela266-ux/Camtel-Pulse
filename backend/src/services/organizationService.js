@@ -25,7 +25,7 @@ class OrganizationService {
 
         return {
             id: centre.id,
-            nom: centre.nom_centre,
+            nom: centre.nom_centre === 'Centre 1 CDPSM' ? 'CPDSM 1' : centre.nom_centre,
             da: (centre.das || []).map((da) => ({
                 id: da.id,
                 nom: da.nom,
@@ -34,7 +34,7 @@ class OrganizationService {
                 dsm: (da.dsms || []).map((dsm) => ({
                     id: dsm.id,
                     nom: dsm.nom,
-                    pos: (dsm.pos_list || []).map((p) => ({ id: p.id, nom: p.nom })),
+                    pos: (Array.isArray(dsm.pos_list) ? dsm.pos_list : []).map((p) => ({ id: p.id, nom: p.nom })),
                 })),
             })),
         };

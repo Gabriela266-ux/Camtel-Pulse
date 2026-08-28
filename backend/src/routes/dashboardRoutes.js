@@ -12,13 +12,13 @@ router.use(authenticate);
 // Attendu par le frontend : GET /api/dashboard?type=CENTRE|DA|DSM|POS&id=...
 router.get('/', async(req, res, next) => {
     try {
-        const { type, id } = req.query;
+        const { type, id, month } = req.query;
 
         if (!type || !id) {
             return res.status(400).json({ ok: false, message: 'Paramètres type et id requis' });
         }
 
-        const data = await getEntityDashboard(String(type).toUpperCase(), String(id));
+        const data = await getEntityDashboard(String(type).toUpperCase(), String(id), month ? String(month) : undefined);
 
         if (!data) {
             return res.status(404).json({ ok: false, message: 'Entité introuvable' });
@@ -41,6 +41,9 @@ router.get('/records', async (req, res, next) => {
     }
 
     const data = await getDailyRecords(String(type).toUpperCase(), String(id), month);
+    if (data === null) {
+      return res.status(404).json({ ok: false, message: 'Entité introuvable' });
+    }
     return res.json({ ok: true, data });
   } catch (error) {
     next(error);
@@ -60,9 +63,9 @@ router.get('/alerts/:type/:entityId', (req, res) => {
 });
 
 router.get('/audit', async(req, res, next) => {
-    const { entite } = req.query;
     try {
-        const data = await auditService.list(entite || null);
+        // Format enrichi attendu par la page « Modifications » (auteur, rôle, partenaire, type).
+        const data = await auditService.listForModifications();
         res.json({ ok: true, data });
     } catch (error) {
         next(error);

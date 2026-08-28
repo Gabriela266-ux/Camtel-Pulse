@@ -46,7 +46,7 @@ module.exports = {
         // 3. Centre
         await queryInterface.bulkInsert('centre', [{
             id: centreId,
-            nom_centre: 'Centre 1 CDPSM',
+            nom_centre: 'CPDSM 1',
             region: 'Littoral',
             created_at: dateNow,
             updated_at: dateNow

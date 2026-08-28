@@ -7,7 +7,10 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "jest --runInBand",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "check:foreign-keys": "node scripts/checkForeignKeys.js",
+    "test:foreign-keys": "node scripts/verifyForeignKeyProtection.js",
+    "test:access-request": "node scripts/verifyAccessRequestWorkflow.js"
   },
   "keywords": [
     "camtel",
@@ -27,6 +30,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "mysql2": "^3.1.0",
+    "nodemailer": "^9.0.5",
     "sequelize": "^6.37.3",
     "sequelize-cli": "^6.5.5",
     "sqlite3": "^6.0.1",

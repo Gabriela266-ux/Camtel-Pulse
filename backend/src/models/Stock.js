@@ -6,6 +6,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: DataTypes.UUIDV4
     },
+    da_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'da', key: 'id' }
+    },
     dsm_id: {
       type: DataTypes.STRING(36),
       allowNull: true,
@@ -47,6 +52,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Stock.associate = function associate(models) {
+    Stock.belongsTo(models.Da, { foreignKey: 'da_id', as: 'da' });
     Stock.belongsTo(models.Dsm, { foreignKey: 'dsm_id', as: 'dsm' });
     Stock.belongsTo(models.Pos, { foreignKey: 'pos_id', as: 'pos' });
     Stock.belongsTo(models.Utilisateur, { foreignKey: 'utilisateur_id', as: 'saisi_par' });

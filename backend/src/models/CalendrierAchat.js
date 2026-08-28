@@ -9,6 +9,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: DataTypes.UUIDV4
     },
+    da_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'da', key: 'id' }
+    },
     dsm_id: {
       type: DataTypes.STRING(36),
       allowNull: true,
@@ -16,7 +21,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     pos_id: {
       type: DataTypes.STRING(36),
-      allowNull: false,
+      allowNull: true,
       references: { model: 'pos', key: 'id' }
     },
     utilisateur_id: {
@@ -45,6 +50,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   CalendrierAchat.associate = function associate(models) {
+    CalendrierAchat.belongsTo(models.Da, { foreignKey: 'da_id', as: 'da' });
     CalendrierAchat.belongsTo(models.Dsm, { foreignKey: 'dsm_id', as: 'dsm' });
     CalendrierAchat.belongsTo(models.Pos, { foreignKey: 'pos_id', as: 'pos' });
     CalendrierAchat.belongsTo(models.Utilisateur, { foreignKey: 'utilisateur_id', as: 'saisi_par' });
