@@ -20,6 +20,29 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(150),
       allowNull: false
     },
+    numero_telephone: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      unique: true
+    },
+    code_dsm: {
+      type: DataTypes.STRING(50),
+      allowNull: true
+    },
+    code_zone: {
+      type: DataTypes.STRING(50),
+      allowNull: true
+    },
+    nom_reseau: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        const numero = this.getDataValue('numero_telephone');
+        const codeDsm = this.getDataValue('code_dsm');
+        const codeZone = this.getDataValue('code_zone');
+        const code = codeDsm && codeZone ? `${codeDsm}_${codeZone}` : '';
+        return numero && code ? `${numero} - ${code}` : this.getDataValue('nom');
+      }
+    },
     raison_sociale: {
       type: DataTypes.STRING(150),
       allowNull: true

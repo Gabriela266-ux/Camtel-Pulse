@@ -73,7 +73,7 @@ Les deux versions du cahier des charges désignent parfois les mêmes objets par
 |---|---|
 | Backend | Node.js + Express.js |
 | ORM | Sequelize |
-| Base de données | MySQL 8 |
+| Base de données | SQLite local (Sequelize) |
 | Authentification | JWT (access + refresh token) |
 | Frontend | React + React Router |
 | État global | React Context / Redux Toolkit |
@@ -96,7 +96,7 @@ Couche services métier
    │  Organisation, Saisie, Calendrier, Calculs (Prévision/Réalisation/Suivi), Alertes, Corrections, Imports, Audit, Notifications
 Couche accès données (Sequelize ORM)
    │
-MySQL
+SQLite
 ```
 
 **Principe non négociable** : le frontend n'est jamais la seule protection. Chaque route sensible du backend revérifie rôle + périmètre, même si l'UI cache déjà l'action.
@@ -217,27 +217,26 @@ Stock de sécurité (POS) = ((Objectif mensuel du DSM ÷ nombre de POS n) ÷ nom
 
 ## Installation
 
-```bash
-# Backend
-cd camtel-pulse-backend
+```powershell
+# Depuis la racine du dépôt
+cd backend
 npm install
-cp .env.example .env   # renseigner les variables (voir ci-dessous)
-npx sequelize-cli db:migrate
-npx sequelize-cli db:seed:all   # jeu de données de démo (CPDSM 1)
-npm run dev
-
-# Frontend
-cd camtel-pulse-frontend
-npm install
-cp .env.example .env
+Copy-Item .env.example .env
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
+
+Le backend est alors accessible sur `http://localhost:5000`. Aucun serveur
+MySQL ou PostgreSQL n'est nécessaire : la base `camtel_pulse.db` reste locale
+et n'est pas envoyée sur GitHub. Le frontend se récupère depuis la branche
+`frontend` et se lance séparément sur `http://localhost:5173`.
 
 ## Variables d'environnement
 
 | Variable | Description |
 |---|---|
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Connexion MySQL |
+| `DB_STORAGE` | Chemin du fichier SQLite local (par défaut `./camtel_pulse.db`) |
 | `JWT_SECRET`, `JWT_REFRESH_SECRET` | Signature des tokens |
 | `JWT_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | Durées de validité |
 | `ACCOUNT_REQUEST_WINDOW_HOURS` | Fenêtre de validation des comptes (72 h) |
@@ -249,6 +248,8 @@ npm run dev
 
 ```bash
 npm run dev            # démarrage en développement
+npm run db:migrate     # appliquer les migrations SQLite
+npm run db:seed        # installer le jeu initial local
 npm test                # tests unitaires + intégration
 npm run lint             # analyse statique
 npx sequelize-cli db:migrate:undo   # rollback de la dernière migration

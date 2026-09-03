@@ -9,17 +9,17 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/organization/tree', async (req, res) => {
-  const data = await organizationService.getTree();
+  const data = await organizationService.getTree(req.user.role === 'super_admin' ? null : req.user.centerId);
   res.json({ ok: true, data });
 });
 
 router.get('/organization/summary', async (req, res) => {
-  const data = await organizationService.getCenterSummary();
+  const data = await organizationService.getCenterSummary(req.user.role === 'super_admin' ? null : req.user.centerId);
   res.json({ ok: true, data });
 });
 
 router.get('/dashboard', async (req, res) => {
-  const data = await salesService.getDashboardStats();
+  const data = await salesService.getDashboardStats(req.user.role === 'super_admin' ? null : req.user.centerId);
   res.json({ ok: true, data });
 });
 

@@ -26,6 +26,15 @@ router.get('/roles', async(req, res, next) => {
     }
 });
 
+router.get('/request-roles', async(req, res, next) => {
+    try {
+        const data = await accountService.listRequestRoles();
+        res.json({ ok: true, data });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // GET /api/accounts/postes — liste des postes disponibles (public).
 router.get('/postes', async(req, res, next) => {
     try {
@@ -56,9 +65,9 @@ router.post('/delete', async(req, res, next) => {
 
 router.use(authenticate);
 
-router.get('/pending', authorize('admin'), async(req, res, next) => {
+router.get('/pending', authorize('admin', 'super_admin'), async(req, res, next) => {
     try {
-        const data = await accountService.listPendingAccounts();
+        const data = await accountService.listPendingAccounts(req.user);
         res.json({ ok: true, data });
     } catch (error) {
         next(error);
@@ -67,9 +76,9 @@ router.get('/pending', authorize('admin'), async(req, res, next) => {
 
 // Approbation d'une demande : associe poste_id + role_id à l'utilisateur,
 // active son compte et enregistre l'admin ayant validé + la date.
-router.patch('/:id/approve', authorize('admin'), async(req, res, next) => {
+router.patch('/:id/approve', authorize('admin', 'super_admin'), async(req, res, next) => {
     try {
-        const data = await accountService.approveAccount(req.params.id, req.user.id);
+        const data = await accountService.approveAccount(req.params.id, req.user);
         res.json({ ok: true, data, message: 'Demande validée. Le compte peut maintenant se connecter.' });
     } catch (error) {
         next(error);
@@ -77,20 +86,20 @@ router.patch('/:id/approve', authorize('admin'), async(req, res, next) => {
 });
 
 // Refus d'une demande : le motif est obligatoire.
-router.patch('/:id/reject', authorize('admin'), async(req, res, next) => {
+router.patch('/:id/reject', authorize('admin', 'super_admin'), async(req, res, next) => {
     try {
-        const data = await accountService.rejectAccount(req.params.id, req.body && req.body.motif, req.user.id);
+        const data = await accountService.rejectAccount(req.params.id, req.body && req.body.motif, req.user);
         res.json({ ok: true, data, message: 'Demande refusée.' });
     } catch (error) {
         next(error);
     }
 });
 
-router.use(authorize('admin'));
+router.use(authorize('admin', 'super_admin'));
 
 router.get('/users', async(req, res, next) => {
     try {
-        const data = await accountService.listUsers();
+        const data = await accountService.listUsers(req.user);
         res.json({ ok: true, data });
     } catch (error) {
         next(error);
@@ -99,7 +108,7 @@ router.get('/users', async(req, res, next) => {
 
 router.post('/users', async(req, res, next) => {
     try {
-        const data = await accountService.createUserByAdmin(req.body || {}, req.user.id);
+        const data = await accountService.createUserByAdmin(req.body || {}, req.user);
         res.status(201).json({ ok: true, data, message: 'Compte créé avec succès.' });
     } catch (error) {
         next(error);
@@ -108,7 +117,7 @@ router.post('/users', async(req, res, next) => {
 
 router.patch('/users/:id/reset-password', async(req, res, next) => {
     try {
-        const data = await accountService.resetUserPassword(req.params.id, req.user.id);
+        const data = await accountService.resetUserPassword(req.params.id, req.user);
         res.json({ ok: true, data, message: 'Mot de passe réinitialisé avec succès.' });
     } catch (error) {
         next(error);
@@ -117,7 +126,7 @@ router.patch('/users/:id/reset-password', async(req, res, next) => {
 
 router.delete('/users/:id', async(req, res, next) => {
     try {
-        const data = await accountService.deleteUserByAdmin(req.params.id, req.user.id);
+        const data = await accountService.deleteUserByAdmin(req.params.id, req.user);
         res.json({ ok: true, data, message: 'Compte supprimé avec succès.' });
     } catch (error) {
         next(error);
@@ -127,7 +136,7 @@ router.delete('/users/:id', async(req, res, next) => {
 // Historique complet des demandes d'acces (toutes les statuts).
 router.get('/demandes', async(req, res, next) => {
     try {
-        const data = await accountService.listAllDemandes();
+        const data = await accountService.listAllDemandes(req.user);
         res.json({ ok: true, data });
     } catch (error) {
         next(error);
@@ -146,7 +155,7 @@ router.post('/:id/message', async(req, res, next) => {
 
 router.patch('/:id', async(req, res, next) => {
     try {
-        const data = await accountService.updateUser(req.params.id, req.body || {});
+        const data = await accountService.updateUser(req.params.id, req.body || {}, req.user);
         res.json({ ok: true, data });
     } catch (error) {
         next(error);

@@ -6,7 +6,7 @@ const { getDailyRecords } = require('../src/services/entityDashboardService');
 describe('Saisie journalière indépendante par portée', () => {
   test('enregistre un partenaire et un DSM sans exiger de POS', async () => {
     const suffix = randomUUID();
-    const centre = await db.Centre.create({ nom_centre: `Centre scope ${suffix}`, region: 'Test' });
+    const centre = await db.Centre.create({ nom_centre: `Centre scope ${suffix}`, code_centre: `CPDSM TEST SCOPE ${suffix.slice(0, 12)}`, region: 'Test' });
     const da = await db.Da.create({
       centre_id: centre.id, code: `SCOPE-${suffix}`, nom: `Partenaire ${suffix}`,
       numero_sim: `SIM-${suffix}`, objectif_mensuel: 3100, active: true

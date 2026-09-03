@@ -3,31 +3,37 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../models');
 const { authenticate } = require('../middlewares/authMiddleware');
+const { toCanonicalRole } = require('../utils/roles');
 
 const router = express.Router();
 
 router.post('/login', async(req, res) => {
-    const { email, identifiant, password } = req.body || {};
-    const loginField = identifiant || email;
+    const { matricule, identifiant, password } = req.body || {};
+    const loginField = matricule || identifiant;
 
     if (!loginField || !password) {
         return res.status(400).json({ ok: false, message: 'Identifiant et mot de passe requis' });
     }
 
     try {
-        // Recherche par matricule OU email
-        const whereClause = {
-            [db.Sequelize.Op.or]: [
-                { email: String(loginField).toLowerCase() },
-                { matricule: String(loginField) }
-            ]
-        };
+        // La connexion est volontairement basée sur le matricule. L'adresse
+        // email reste un canal de notification, pas un identifiant de session.
+        const whereClause = { matricule: String(loginField).trim() };
 
         const user = await db.Utilisateur.findOne({
             where: whereClause,
             include: [
                 { model: db.Role, as: 'role' },
-                { model: db.Da, as: 'da', include: [{ model: db.Centre, as: 'centre' }] }
+                { model: db.Centre, as: 'centre', required: false },
+                { model: db.Utilisateur, as: 'chefOperationnel', attributes: ['id', 'nom_complet', 'matricule'], required: false },
+                { model: db.Da, as: 'da', include: [{ model: db.Centre, as: 'centre' }] },
+                {
+                    model: db.AffectationOperationnelPartenaire,
+                    as: 'affectationsPartenaires',
+                    required: false,
+                    where: { statut: 'actif' },
+                    include: [{ model: db.Da, as: 'partenaire' }]
+                }
             ]
         });
 
@@ -47,11 +53,30 @@ router.post('/login', async(req, res) => {
 
         // Normalise le rôle en snake_case minuscule pour les vérifications RBAC
         // et l'affichage frontend (la table role stocke des libellés type 'Admin', 'Agent').
-        const role = user.role.libelle.toLowerCase().replace(/\s+/g, '_');
+        const role = toCanonicalRole(user.role && user.role.libelle);
+        if (!role) {
+            return res.status(403).json({ ok: false, message: 'Rôle du compte non reconnu' });
+        }
+        if (role !== 'super_admin' && !user.centre_id) {
+            return res.status(403).json({ ok: false, message: 'Aucun centre organisationnel rattaché à ce compte' });
+        }
+        if (role !== 'super_admin' && user.centre && !Boolean(user.centre.active)) {
+            return res.status(403).json({ ok: false, message: 'Votre centre est temporairement désactivé' });
+        }
 
         const token = jwt.sign({ sub: user.id, email: user.email, role, da_id: user.da_id },
             process.env.JWT_SECRET || 'camtel-secret', { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
         );
+
+        const activeAssignments = user.affectationsPartenaires || [];
+        const partenaires = activeAssignments
+            .filter((assignment) => assignment.partenaire)
+            .map((assignment) => ({
+                id: String(assignment.partenaire.id),
+                nom: assignment.partenaire.nom,
+                code: assignment.partenaire.code,
+            }));
+        const centerId = user.centre_id || null;
 
         return res.json({
             ok: true,
@@ -62,7 +87,20 @@ router.post('/login', async(req, res) => {
                 email: user.email,
                 role,
                 da_id: user.da_id,
-                centerId: user.da && (user.da.centre_id || (user.da.centre && user.da.centre.id)) || null,
+                partenaire_ids: partenaires.map((partner) => partner.id),
+                partenaires,
+                centerId,
+                centre: user.centre ? {
+                    id: user.centre.id,
+                    code_centre: user.centre.code_centre,
+                    nom_centre: user.centre.nom_centre,
+                    region: user.centre.region,
+                } : null,
+                chef_operationnel: user.chefOperationnel ? {
+                    id: String(user.chefOperationnel.id),
+                    nom_complet: user.chefOperationnel.nom_complet,
+                    matricule: user.chefOperationnel.matricule,
+                } : null,
                 status: user.statut,
                 must_change_password: Boolean(user.must_change_password)
             }

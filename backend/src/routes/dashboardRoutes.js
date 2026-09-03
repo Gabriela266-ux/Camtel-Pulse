@@ -4,6 +4,7 @@ const calendarService = require('../services/calendarService');
 const alertesService = require('../services/alertesService');
 const auditService = require('../services/auditService');
 const { getEntityDashboard, getDailyRecords } = require('../services/entityDashboardService');
+const { assertEntityAccess } = require('../utils/entityAccess');
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ router.get('/', async(req, res, next) => {
         if (!type || !id) {
             return res.status(400).json({ ok: false, message: 'Paramètres type et id requis' });
         }
+        await assertEntityAccess(req.user, type, id);
 
         const data = await getEntityDashboard(String(type).toUpperCase(), String(id), month ? String(month) : undefined);
 
@@ -39,6 +41,7 @@ router.get('/records', async (req, res, next) => {
     if (!type || !id) {
       return res.status(400).json({ ok: false, message: 'Paramètres type et id requis' });
     }
+    await assertEntityAccess(req.user, type, id);
 
     const data = await getDailyRecords(String(type).toUpperCase(), String(id), month);
     if (data === null) {
@@ -65,8 +68,11 @@ router.get('/alerts/:type/:entityId', (req, res) => {
 router.get('/audit', async(req, res, next) => {
     try {
         // Format enrichi attendu par la page « Modifications » (auteur, rôle, partenaire, type).
-        const data = await auditService.listForModifications();
-        res.json({ ok: true, data });
+        const data = await auditService.listForModifications(req.user);
+        const scoped = req.user.role === 'operationnel'
+            ? data.filter((entry) => String(entry.auteurId || '') === String(req.user.id))
+            : data;
+        res.json({ ok: true, data: scoped });
     } catch (error) {
         next(error);
     }

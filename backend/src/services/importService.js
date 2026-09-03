@@ -26,65 +26,95 @@ class ImportService {
     return records;
   }
 
-  async importFromCsv(content) {
+  async importFromCsv(content, { centreId } = {}) {
+    if (!centreId) {
+      const error = new Error('Aucun centre rattaché au compte administrateur');
+      error.statusCode = 403;
+      throw error;
+    }
     const rows = this.parseCsvContent(content);
+    if (!rows.length) {
+      const error = new Error('Le fichier CSV ne contient aucune ligne exploitable');
+      error.statusCode = 400;
+      throw error;
+    }
+    const centre = await db.Centre.findOne({ where: { id: centreId, active: true } });
+    if (!centre) {
+      const error = new Error('Le centre rattaché est introuvable ou désactivé');
+      error.statusCode = 403;
+      throw error;
+    }
     const inserted = [];
-    const errors = [];
-
-    // Process in batches of 500 to avoid memory overload
-    const BATCH_SIZE = 500;
-    
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE);
-      const entities = batch.map(row => ({
-        nom: row.nom || row.name || 'Importé',
-        objectif_mensuel: Number(row.objectif || row.objectif_mensuel || 0),
-        centre_id: row.centre_id || null,
-        da_id: row.da_id || null,
-        dsm_id: row.dsm_id || null,
-        type: row.type || 'unknown'
-      }));
-
-      try {
-        // Determine entity type and bulk create
-        const centreRows = entities.filter(e => e.type === 'centre' || (!e.da_id && !e.dsm_id && !e.centre_id));
-        const daRows = entities.filter(e => e.type === 'da' || (e.centre_id && !e.dsm_id && !e.da_id));
-        const dsmRows = entities.filter(e => e.type === 'dsm' || (e.da_id && !e.dsm_id));
-        const posRows = entities.filter(e => e.type === 'pos' || e.dsm_id);
-
-        if (centreRows.length > 0) {
-          const created = await db.Centre.bulkCreate(centreRows, { ignoreDuplicates: true });
-          inserted.push(...created);
+    await db.sequelize.transaction(async (transaction) => {
+      for (const [index, row] of rows.entries()) {
+        const type = String(row.type || '').trim().toLowerCase();
+        const nom = String(row.nom || row.name || '').trim();
+        if (!['da', 'dsm', 'pos'].includes(type) || !nom) {
+          const error = new Error(`Ligne ${index + 2} : type (DA, DSM ou POS) et nom sont obligatoires`);
+          error.statusCode = 400;
+          throw error;
         }
-        if (daRows.length > 0) {
-          const created = await db.Da.bulkCreate(daRows, { ignoreDuplicates: true });
-          inserted.push(...created);
+        if (type === 'da') {
+          const code = String(row.code || '').trim();
+          if (!code) {
+            const error = new Error(`Ligne ${index + 2} : le code du partenaire est obligatoire`);
+            error.statusCode = 400;
+            throw error;
+          }
+          inserted.push(await db.Da.create({
+            centre_id: centreId,
+            code,
+            nom,
+            region: String(row.region || '').trim() || centre.region,
+            numero_sim: String(row.numero_sim || '').trim() || null,
+            code_zone: String(row.code_zone || '').trim() || null,
+            objectif_mensuel: Number(row.objectif || row.objectif_mensuel || 0),
+            active: true,
+          }, { transaction }));
+        } else if (type === 'dsm') {
+          const daId = String(row.da_id || '').trim();
+          const parent = daId ? await db.Da.findByPk(daId, { transaction }) : null;
+          if (!parent || String(parent.centre_id) !== String(centreId)) {
+            const error = new Error(`Ligne ${index + 2} : partenaire parent introuvable dans votre centre`);
+            error.statusCode = 400;
+            throw error;
+          }
+          inserted.push(await db.Dsm.create({
+            da_id: daId,
+            nom,
+            numero_telephone: String(row.numero_telephone || '').trim() || null,
+            code_dsm: String(row.code_dsm || '').trim() || null,
+            code_zone: String(row.code_zone || '').trim() || null,
+            statut: 'actif',
+          }, { transaction }));
+        } else {
+          const dsmId = String(row.dsm_id || '').trim();
+          const parent = dsmId ? await db.Dsm.findByPk(dsmId, {
+            transaction,
+            include: [{ model: db.Da, as: 'da', required: true }],
+          }) : null;
+          if (!parent || !parent.da || String(parent.da.centre_id) !== String(centreId)) {
+            const error = new Error(`Ligne ${index + 2} : DSM parent introuvable dans votre centre`);
+            error.statusCode = 400;
+            throw error;
+          }
+          inserted.push(await db.Pos.create({
+            dsm_id: dsmId,
+            nom,
+            numero_telephone: String(row.numero_telephone || '').trim() || null,
+            code_pos: String(row.code_pos || '').trim() || null,
+            code_dsm: parent.code_dsm || null,
+            code_zone: parent.code_zone || null,
+            statut: 'actif',
+          }, { transaction }));
         }
-        if (dsmRows.length > 0) {
-          const created = await db.Dsm.bulkCreate(dsmRows, { ignoreDuplicates: true });
-          inserted.push(...created);
-        }
-        if (posRows.length > 0) {
-          const created = await db.Pos.bulkCreate(posRows, { ignoreDuplicates: true });
-          inserted.push(...created);
-        }
-
-        console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted.length} total imported`);
-      } catch (error) {
-        console.error(`Batch error at row ${i}:`, error.message);
-        errors.push({ batch: Math.floor(i / BATCH_SIZE), error: error.message });
       }
-    }
-
-    if (errors.length > 0) {
-      console.warn(`Import completed with ${errors.length} batch error(s)`);
-    }
+    });
 
     return {
       success: true,
       totalImported: inserted.length,
-      errors,
-      records: inserted
+      records: inserted.map((record) => ({ id: record.id, type: record.constructor.name, nom: record.nom }))
     };
   }
 }

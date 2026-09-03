@@ -1,8 +1,9 @@
 const db = require('../models');
 
 class OrganizationService {
-    async getTree() {
+    async getTree(centerId = null) {
         const centres = await db.Centre.findAll({
+            where: centerId ? { id: centerId } : {},
             include: [{
                 model: db.Da,
                 as: 'das',
@@ -19,29 +20,46 @@ class OrganizationService {
     // Adapte l'arbre Sequelize (Centre/Da/Dsm/Pos, nom_centre) vers le shape
     // attendu par le frontend (CentreHierarchy: id/nom/da/dsm/pos).
     async getFrontendHierarchy(centerId) {
-        const centres = await this.getTree();
-        const centre = centerId ? centres.find((c) => c.id === centerId) : centres[0];
+        if (!centerId) return null;
+        const centres = await this.getTree(centerId);
+        const centre = centres[0];
         if (!centre) return null;
 
         return {
             id: centre.id,
-            nom: centre.nom_centre === 'Centre 1 CDPSM' ? 'CPDSM 1' : centre.nom_centre,
+            nom: centre.code_centre || centre.nom_centre,
             da: (centre.das || []).map((da) => ({
                 id: da.id,
                 nom: da.nom,
+                code: da.code,
                 region: da.region,
                 numero_sim: da.numero_sim,
+                code_zone: da.code_zone,
+                nom_reseau: da.nom_reseau,
                 dsm: (da.dsms || []).map((dsm) => ({
                     id: dsm.id,
                     nom: dsm.nom,
-                    pos: (Array.isArray(dsm.pos_list) ? dsm.pos_list : []).map((p) => ({ id: p.id, nom: p.nom })),
+                    numero_telephone: dsm.numero_telephone,
+                    code_dsm: dsm.code_dsm,
+                    code_zone: dsm.code_zone,
+                    nom_reseau: dsm.nom_reseau,
+                    pos: (Array.isArray(dsm.pos_list) ? dsm.pos_list : []).map((p) => ({
+                        id: p.id,
+                        nom: p.nom,
+                        numero_telephone: p.numero_telephone,
+                        code_pos: p.code_pos,
+                        code_dsm: p.code_dsm,
+                        code_zone: p.code_zone,
+                        nom_reseau: p.nom_reseau,
+                    })),
                 })),
             })),
         };
     }
 
-    async getCenterSummary() {
+    async getCenterSummary(centerId = null) {
         const centres = await db.Centre.findAll({
+            where: centerId ? { id: centerId } : {},
             include: [{ model: db.Da, as: 'das' }]
         });
 

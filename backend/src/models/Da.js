@@ -32,6 +32,18 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true,
             unique: true
         },
+        code_zone: {
+            type: DataTypes.STRING(50),
+            allowNull: true
+        },
+        nom_reseau: {
+            type: DataTypes.VIRTUAL,
+            get() {
+                const numero = this.getDataValue('numero_sim');
+                const code = this.getDataValue('code');
+                return numero && code ? `${numero} - ${code}` : this.getDataValue('nom');
+            }
+        },
         objectif_mensuel: {
             type: DataTypes.DECIMAL(15, 2),
             allowNull: false,
@@ -52,6 +64,10 @@ module.exports = (sequelize, DataTypes) => {
         Da.belongsTo(models.Centre, { foreignKey: 'centre_id', as: 'centre' });
         Da.hasMany(models.Dsm, { foreignKey: 'da_id', as: 'dsms' });
         Da.hasMany(models.Utilisateur, { foreignKey: 'da_id', as: 'utilisateurs' });
+        Da.hasMany(models.AffectationOperationnelPartenaire, {
+            foreignKey: 'da_id',
+            as: 'affectationsOperationnels'
+        });
     };
 
     return Da;

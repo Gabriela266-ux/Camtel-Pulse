@@ -15,7 +15,6 @@ function generateMonthCalendar({ entityType = 'pos', entityId, objectiveMensuel 
   for (let day = 1; day <= daysInMonth; day += 1) {
     // Use UTC date to avoid timezone issues
     const dateStr = `${String(year)}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const date = new Date(dateStr + 'T00:00:00Z');
     rows.push({
       entityType,
       entityId,

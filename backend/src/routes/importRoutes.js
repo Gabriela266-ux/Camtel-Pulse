@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticate } = require('../middlewares/authMiddleware');
+const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const importService = require('../services/importService');
 
 const router = express.Router();
@@ -8,7 +8,7 @@ router.use(authenticate);
 
 const MAX_CSV_SIZE = 10 * 1024 * 1024; // 10MB
 
-router.post('/csv', async (req, res, next) => {
+router.post('/csv', authorize('admin'), async (req, res, next) => {
   try {
     const { content } = req.body || {};
 
@@ -24,7 +24,7 @@ router.post('/csv', async (req, res, next) => {
       });
     }
 
-    const data = await importService.importFromCsv(content);
+    const data = await importService.importFromCsv(content, { centreId: req.user.centerId });
     return res.status(201).json({ 
       ok: true, 
       data: {

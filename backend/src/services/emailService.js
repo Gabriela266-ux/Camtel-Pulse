@@ -21,14 +21,16 @@ function getTransporter() {
     return transporter;
 }
 
-function logEmail({ to, subject, text }) {
+function logEmail({ to, subject, text, containsSecret = false }) {
     console.log('\n========================================');
     console.log('[DEV EMAIL] Mode développement activé');
     console.log('----------------------------------------');
     console.log(`Destinataire : ${to}`);
     console.log(`Sujet       : ${subject}`);
     console.log('----------------------------------------');
-    console.log(text);
+    console.log(containsSecret
+        ? '[CONTENU SENSIBLE MASQUÉ] Le mot de passe temporaire est disponible une seule fois dans l’interface administrateur.'
+        : text);
     console.log('========================================\n');
 }
 
@@ -37,19 +39,20 @@ async function sendAccountDecision({ email, name, approved, temporaryPassword })
         'Validation de votre accès - Financial Pulse by Camtel' :
         'Décision concernant votre demande d\u2019accès - Financial Pulse by Camtel';
 
+    const greeting = name ? `Bonjour ${name},\n\n` : '';
     const text = approved ?
-        `Votre demande a été validée et bienvenue sur Financial Pulse by Camtel. Voici votre mot de passe temporaire pour vous connecter : ${temporaryPassword}.` :
-        `Votre demande a été refusée.`;
+        `${greeting}Votre demande a été validée et bienvenue sur Financial Pulse by Camtel. Voici votre mot de passe temporaire pour vous connecter : ${temporaryPassword}.` :
+        `${greeting}Votre demande a été refusée.`;
 
     if (isEmailSimulation) {
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: approved });
         return { sent: true, simulated: true, reason: 'dev_mode' };
     }
 
     const mailer = getTransporter();
     if (!mailer) {
         console.warn('[EMAIL] SMTP non configure: notification non envoyee pour', email);
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: approved });
         return { sent: false, reason: 'smtp_not_configured' };
     }
 
@@ -63,7 +66,7 @@ async function sendAccountDecision({ email, name, approved, temporaryPassword })
         return { sent: true };
     } catch (error) {
         console.error('[EMAIL] Notification failed for', email, error.message);
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: approved });
         return { sent: false, reason: 'send_failed' };
     }
 }
@@ -73,14 +76,14 @@ async function sendAccountCreated({ email, name, temporaryPassword }) {
     const text = `Bonjour ${name || ''},\n\nVotre compte Financial Pulse by Camtel a été créé par l’administration. Votre mot de passe temporaire est : ${temporaryPassword}. Vous devrez le modifier lors de votre première connexion.`;
 
     if (isEmailSimulation) {
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: true });
         return { sent: true, simulated: true, reason: 'dev_mode' };
     }
 
     const mailer = getTransporter();
     if (!mailer) {
         console.warn('[EMAIL] SMTP non configure: notification non envoyee pour', email);
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: true });
         return { sent: false, reason: 'smtp_not_configured' };
     }
 
@@ -94,7 +97,7 @@ async function sendAccountCreated({ email, name, temporaryPassword }) {
         return { sent: true };
     } catch (error) {
         console.error('[EMAIL] Notification failed for', email, error.message);
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: true });
         return { sent: false, reason: 'send_failed' };
     }
 }
@@ -133,13 +136,13 @@ async function sendPasswordResetCompleted({ email, name, temporaryPassword }) {
     const text = `Bonjour ${name || ''},\n\nVotre demande a été validée par l’administration. Votre nouveau mot de passe temporaire est : ${temporaryPassword}.\n\nVous devrez obligatoirement le modifier lors de votre prochaine connexion. Si vous n’êtes pas à l’origine de cette demande, contactez immédiatement l’administration.`;
 
     if (isEmailSimulation) {
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: true });
         return { sent: true, simulated: true, reason: 'dev_mode' };
     }
     const mailer = getTransporter();
     if (!mailer) {
         console.warn('[EMAIL] SMTP non configure: mot de passe non envoye pour', email);
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: true });
         return { sent: false, reason: 'smtp_not_configured' };
     }
     try {
@@ -152,7 +155,7 @@ async function sendPasswordResetCompleted({ email, name, temporaryPassword }) {
         return { sent: true };
     } catch (error) {
         console.error('[EMAIL] Password reset completion notification failed for', email, error.message);
-        logEmail({ to: email, subject, text });
+        logEmail({ to: email, subject, text, containsSecret: true });
         return { sent: false, reason: 'send_failed' };
     }
 }

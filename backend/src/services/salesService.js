@@ -1,8 +1,15 @@
 const db = require('../models');
 
 class SalesService {
-  async getDashboardStats() {
-    const ventes = await db.VenteDsmAuPos.findAll();
+  async getDashboardStats(centerId = null) {
+    const ventes = await db.VenteDsmAuPos.findAll({
+      include: centerId ? [{
+        model: db.Dsm,
+        as: 'dsm',
+        required: true,
+        include: [{ model: db.Da, as: 'da', required: true, where: { centre_id: centerId } }],
+      }] : [],
+    });
     const totalMontant = ventes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
     
     return {

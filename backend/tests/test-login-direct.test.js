@@ -8,7 +8,7 @@ describe('Direct Login Test', () => {
     const response = await request(app)
       .post('/api/auth/login')
       .send({
-        email: 'admin@camtel.local',
+        matricule: 'ADM-001',
         password: 'Admin123!'
       });
 

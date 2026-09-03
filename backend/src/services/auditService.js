@@ -9,6 +9,16 @@ function safeParseDetails(value) {
   }
 }
 
+function sanitizeDetails(value) {
+  if (Array.isArray(value)) return value.map(sanitizeDetails);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !/(mot_de_passe|password|temporarypassword|token)/i.test(key))
+      .map(([key, item]) => [key, sanitizeDetails(item)])
+  );
+}
+
 class AuditService {
   // Historique d'audit brut (utile pour la console Admin). Aucun mock en dur.
   async list(entite = null) {
@@ -44,7 +54,7 @@ class AuditService {
 
   mapRole(libelle) {
     const normalized = String(libelle || '').toLowerCase().replace(/\s+/g, '_');
-    const map = { admin: 'ADMIN', chef_operationnel: 'CHEF_OPE', manager: 'MANAGER', operationnel: 'OPERATIONNEL' };
+    const map = { super_admin: 'SUPER_ADMIN', admin: 'ADMIN', chef_operationnel: 'CHEF_OPE', manager: 'MANAGER', operationnel: 'OPERATIONNEL' };
     return map[normalized] || normalized.toUpperCase();
   }
 
@@ -53,19 +63,22 @@ class AuditService {
       dsm_ajoute: 'DSM_AJOUTE',
       pos_ajoute: 'POS_AJOUTE',
       saisie_creee: 'SAISIE_CREEE',
+      saisie_modifiee: 'SAISIE_CORRIGEE',
       saisie_corrigee: 'SAISIE_CORRIGEE',
       correction_validee: 'CORRECTION_VALIDEE',
       operationnel_affecte: 'OPERATIONNEL_AFFECTE',
+      operationnel_desaffecte: 'OPERATIONNEL_DESAFFECTE',
       operationnel_suspendu: 'OPERATIONNEL_SUSPENDU',
-      operationnel_active: 'OPERATIONNEL_REACTIVE'
+      operationnel_active: 'OPERATIONNEL_REACTIVE',
+      operationnel_transfere_chef: 'OPERATIONNEL_TRANSFERE_CHEF'
     };
     if (known[action]) return known[action];
     // pos_modifie avec changement de DSM -> déplacement de POS.
     if (action === 'pos_modifie' && details && details.dsm_id !== undefined) return 'POS_DEPLACE';
-    return 'DSM_AJOUTE';
+    return String(action || 'MODIFICATION').toUpperCase();
   }
 // Historique enrichi au format attendu par la page « Modifications » du frontend.
-  async listForModifications() {
+  async listForModifications(actor = null) {
     if (!db.AuditLog) return [];
 
     const logs = await db.AuditLog.findAll({
@@ -80,27 +93,49 @@ class AuditService {
       'SAISIE_CORRIGEE': 'Une saisie journalière a été corrigée',
       'CORRECTION_VALIDEE': 'Une correction a été validée',
       'OPERATIONNEL_AFFECTE': 'Un opérationnel a été affecté',
+      'OPERATIONNEL_DESAFFECTE': 'Les périmètres d’un opérationnel ont été retirés',
       'OPERATIONNEL_SUSPENDU': 'Un opérationnel a été suspendu temporairement',
       'OPERATIONNEL_REACTIVE': 'Un opérationnel a été réactivé',
+      'OPERATIONNEL_TRANSFERE_CHEF': 'Un opérationnel a été transféré vers un autre Chef',
       'POS_DEPLACE': 'Un POS a été déplacé'
     };
 
     // Cache auteur (nom + rôle) pour éviter une requête par ligne.
     const userCache = new Map();
+    const centreCache = new Map();
     const getUser = async (userId) => {
       if (!userId) return null;
       if (!userCache.has(userId)) {
-        const u = await db.Utilisateur.findByPk(userId, { include: [{ model: db.Role, as: 'role' }] });
+        const u = await db.Utilisateur.findByPk(userId, {
+          include: [
+            { model: db.Role, as: 'role' },
+            { model: db.Utilisateur, as: 'chefOperationnel', attributes: ['id', 'nom_complet', 'matricule'], required: false },
+          ],
+        });
         userCache.set(userId, u);
       }
       return userCache.get(userId);
+    };
+    const getCentre = async (centreId) => {
+      if (!centreId) return null;
+      if (!centreCache.has(centreId)) {
+        centreCache.set(centreId, await db.Centre.findByPk(centreId, {
+          attributes: ['id', 'code_centre', 'nom_centre', 'region'],
+        }));
+      }
+      return centreCache.get(centreId);
     };
 
     const results = [];
     for (const log of logs) {
       const user = await getUser(log.utilisateur_id);
-      const details = safeParseDetails(log.details);
+      const details = sanitizeDetails(safeParseDetails(log.details));
+      const concernedCentreId = details.centre_id || details.auteur_centre_id || (user && user.centre_id) || null;
+      if (actor && actor.role !== 'super_admin' && String(concernedCentreId || '') !== String(actor.centerId || '')) {
+        continue;
+      }
       const type = this.mapType(log.action, details);
+      const centre = await getCentre(concernedCentreId);
       const partner = ['da', 'dsm', 'pos', 'utilisateur'].includes(log.entite)
         ? await this.resolvePartner(log.entite, log.entite_id, details)
         : null;
@@ -110,12 +145,28 @@ class AuditService {
         date: (log.created_at || new Date()).toISOString(),
         auteurId: log.utilisateur_id ? String(log.utilisateur_id) : null,
         auteur: (user && user.nom_complet) || 'Système',
+        auteurEmail: (user && user.email) || null,
         roleAuteur: user && user.role ? this.mapRole(user.role.libelle) : 'SYSTEME',
+        chefOperationnel: user && user.chefOperationnel ? {
+          id: String(user.chefOperationnel.id),
+          nomComplet: user.chefOperationnel.nom_complet,
+          matricule: user.chefOperationnel.matricule,
+        } : null,
+        centreId: concernedCentreId,
+        centre: centre ? {
+          id: centre.id,
+          code_centre: centre.code_centre,
+          nom_centre: centre.nom_centre,
+          region: centre.region,
+        } : null,
         type,
         partenaireId: partner && partner.partenaireId ? String(partner.partenaireId) : null,
         partenaire: (partner && partner.partenaire) || null,
-        entite: log.entite_id || '',
+        entite: log.entite ? String(log.entite).toUpperCase() : '',
+        entiteType: log.entite || null,
+        entiteId: log.entite_id || null,
         detail: detailLabels[type] || "Modification d'entité",
+        details,
         statut: 'EFFECTUEE'
       });
     }
@@ -123,7 +174,7 @@ class AuditService {
     return results;
   }
 
-  async add(entry) {
+  async add(entry, transaction = undefined) {
     if (!db.AuditLog) return null;
     return db.AuditLog.create({
       utilisateur_id: entry.utilisateur_id || null,
@@ -131,7 +182,7 @@ class AuditService {
       entite: entry.entite || null,
       entite_id: entry.entite_id || null,
       details: typeof entry.details === 'string' ? entry.details : JSON.stringify(entry.details || {})
-    });
+    }, { transaction });
   }
 }
 
