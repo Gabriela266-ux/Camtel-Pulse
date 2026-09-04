@@ -51,7 +51,8 @@ module.exports = {
             quantite_prevue, date_saisir, created_at, updated_at
           )
           SELECT
-            id, da_id, dsm_id, pos_id, utilisateur_id, date_prevue,
+            id, da_id, CASE WHEN pos_id IS NULL THEN dsm_id ELSE NULL END,
+            pos_id, utilisateur_id, date_prevue,
             quantite_prevue, date_saisir, created_at, updated_at
           FROM calendrier_achat
         `, { transaction });
@@ -59,15 +60,18 @@ module.exports = {
         await queryInterface.dropTable('calendrier_achat', { transaction });
         await queryInterface.renameTable('calendrier_achat_network_scope', 'calendrier_achat', { transaction });
 
-        await queryInterface.addIndex('calendrier_achat', ['da_id', 'date_prevue'], {
-          name: 'calendrier_achat_da_date_unique', unique: true, transaction,
-        });
-        await queryInterface.addIndex('calendrier_achat', ['dsm_id', 'date_prevue'], {
-          name: 'calendrier_achat_dsm_date_unique', unique: true, transaction,
-        });
-        await queryInterface.addIndex('calendrier_achat', ['pos_id', 'date_prevue'], {
-          name: 'calendrier_achat_pos_date_unique', unique: true, transaction,
-        });
+        await addUniqueIndexIfMissing(
+          queryInterface, 'calendrier_achat', ['da_id', 'date_prevue'],
+          'calendrier_achat_da_date_unique', transaction
+        );
+        await addUniqueIndexIfMissing(
+          queryInterface, 'calendrier_achat', ['dsm_id', 'date_prevue'],
+          'calendrier_achat_dsm_date_unique', transaction
+        );
+        await addUniqueIndexIfMissing(
+          queryInterface, 'calendrier_achat', ['pos_id', 'date_prevue'],
+          'calendrier_achat_pos_date_unique', transaction
+        );
       });
     } else {
       await addUniqueIndexIfMissing(queryInterface, 'calendrier_achat', ['da_id', 'date_prevue'], 'calendrier_achat_da_date_unique');
