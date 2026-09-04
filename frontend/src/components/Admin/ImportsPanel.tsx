@@ -37,20 +37,13 @@ export const ImportsPanel: React.FC = () => {
     setProgress(0);
 
     try {
-      // Simulate progress updates (real progress would come from backend)
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => Math.min(prev + Math.random() * 20, 90));
-      }, 500);
-
       const response = await apiService.importCsv(csvContent);
-
-      clearInterval(progressInterval);
       setProgress(100);
 
       setResult({
         success: true,
-        imported: response.data?.imported || response.data?.records?.length || 0,
-        message: response.message || 'Import complété avec succès',
+        imported: response.imported || response.records?.length || 0,
+        message: 'Import complété avec succès',
       });
 
       setCsvContent('');
@@ -71,7 +64,7 @@ export const ImportsPanel: React.FC = () => {
       <div>
         <h2 className="text-lg font-bold">Importer Données</h2>
         <p className="text-sm text-slate-600">
-          Télécharger un fichier CSV pour importer des centres, DA, DSM, POS.
+          Importer des partenaires, DSM et POS réels dans votre centre. La création des centres reste réservée au Super Admin.
         </p>
       </div>
 
@@ -111,12 +104,12 @@ export const ImportsPanel: React.FC = () => {
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>En cours d'import...</span>
-            <span>{Math.round(progress)}%</span>
+            <span>Traitement sécurisé…</span>
           </div>
           <div className="w-full bg-slate-200 rounded-full h-2">
             <div
               className="bg-sky-500 h-2 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
+              style={{ width: progress === 100 ? '100%' : '55%' }}
             />
           </div>
         </div>

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useDeferredValue, useState } from 'react';
 import { ChevronLeft, Store, Search, UserCog, X } from 'lucide-react';
 import { HierarchyTree } from '../hierarchy/HierarchyTree';
+import { PlatformLogo } from '../common/PlatformLogo';
 import type { DAHierarchy, EntitySelection } from '../../types';
-import type { User } from '../../auth/AuthContext';
+import type { User } from '../../auth/authState';
 
 interface SidebarProps {
   hierarchyData: DAHierarchy;
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Sélection d'entité : referme le drawer sur mobile.
   const handleSelectEntity = (entity: EntitySelection) => {
@@ -78,40 +80,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
         isOpen ? 'translate-x-0' : '-translate-x-full'
       } ${isCollapsed ? 'lg:w-16' : 'lg:w-72'} w-72`}
     >
-      <div className={`border-b p-4 ${headerBorderClass}`}>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <div className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border shadow-sm ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-white'}`}>
-            <img src="/logo-camtel.png" alt="Logo Camtel" className="h-full w-full object-contain" />
-          </div>
-
-          {!isCollapsed && (
-            <div className="min-w-0 flex-1">
-              <div className={`truncate text-sm font-bold leading-none ${titleClass}`}>
-                Financial Pulse
-              </div>
-              <div className={`mt-0.5 truncate text-xs ${secondaryClass}`}>CPDSM 1</div>
-            </div>
+      <div className={`border-b ${isCollapsed ? 'p-2' : 'p-4'} ${headerBorderClass}`}>
+        <div className={`relative mb-4 flex flex-col items-center ${isCollapsed ? 'gap-2' : ''}`}>
+          {isCollapsed ? (
+            <img src="/logo-camtel.png" alt="Logo BLUE Financial Pulse" className="h-12 w-12 rounded-xl border border-slate-200 bg-white object-contain shadow-sm" />
+          ) : (
+            <>
+              <PlatformLogo size="modal" />
+              <div className={`mt-2 text-center text-xs font-bold ${titleClass}`}>CPDSM 1</div>
+            </>
           )}
 
-          {/* Fermer : uniquement en drawer mobile */}
-          <button
-            onClick={onClose}
-            title="Fermer le menu"
-            aria-label="Fermer le menu"
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 lg:hidden ${buttonClass} ${isDark ? 'focus:ring-sky-500/40' : 'focus:ring-sky-200'}`}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className={isCollapsed ? 'flex flex-col items-center gap-1' : 'absolute right-0 top-0 flex flex-col gap-1'}>
+            <button
+              onClick={onClose}
+              title="Fermer le menu"
+              aria-label="Fermer le menu"
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 lg:hidden ${buttonClass} ${isDark ? 'focus:ring-sky-500/40' : 'focus:ring-sky-200'}`}
+            >
+              <X className="h-4 w-4" />
+            </button>
 
-          <button
-            onClick={onToggleCollapse}
-            title={isCollapsed ? 'Ouvrir la sidebar' : 'Réduire la sidebar'}
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 ${buttonClass} ${isDark ? 'focus:ring-sky-500/40' : 'focus:ring-sky-200'}`}
-          >
-            <ChevronLeft
-              className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
-            />
-          </button>
+            <button
+              onClick={onToggleCollapse}
+              title={isCollapsed ? 'Ouvrir la sidebar' : 'Réduire la sidebar'}
+              aria-label={isCollapsed ? 'Ouvrir la barre latérale' : 'Réduire la barre latérale'}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus:ring-2 ${buttonClass} ${isDark ? 'focus:ring-sky-500/40' : 'focus:ring-sky-200'}`}
+            >
+              <ChevronLeft
+                className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
+              />
+            </button>
+          </div>
         </div>
 
         {!isCollapsed && (
@@ -133,28 +133,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               <div className={`mt-2 rounded-lg border px-2.5 py-2 text-xs leading-snug ${infoClass}`}>
-                {role === 'ADMIN' && `Accès complet ${hierarchyData.nom}`}
+                {role === 'ADMIN' && 'Lecture seule sur tous les indicateurs'}
                 {role === 'MANAGER' && 'Lecture seule sur tous les indicateurs'}
                 {role === 'CHEF_OPE' && `${hierarchyData.nom} - Gestion opérationnelle`}
                 {role === 'OPERATIONNEL' && (() => {
-                  const partner = user?.partenaireId
-                    ? hierarchyData.da.find((da) => da.id === user.partenaireId)
-                    : null;
-                  return partner
-                    ? `Partenaire affecté - ${partner.nom}`
-                    : 'Partenaire non assigné';
+                  const partnerIds = user?.partenaireIds?.length
+                    ? user.partenaireIds
+                    : user?.partenaireId ? [user.partenaireId] : [];
+                  const names = hierarchyData.da.filter((da) => partnerIds.includes(da.id)).map((da) => da.nom);
+                  return names.length
+                    ? `Partenaires affectés - ${names.join(', ')}`
+                    : 'Aucun partenaire affecté';
                 })()}
               </div>
 
-              {role === 'ADMIN' && (
-                <button
-                  type="button"
-                  onClick={onAddPartner}
-                  className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold ${isDark ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20' : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
-                >
-                  + Ajouter partenaire
-                </button>
-              )}
               {role === 'CHEF_OPE' && (
                 <button
                   type="button"
@@ -182,7 +174,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Client, DSM, POS..."
+                    placeholder="Nom, numéro, zone, DSM, POS…"
+                    aria-label="Rechercher une entité par nom, numéro, code ou zone"
                     className={`w-full rounded-lg border py-2 pl-9 pr-8 text-xs outline-none ${searchClass}`}
                   />
                   {searchQuery && (
@@ -201,7 +194,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <HierarchyTree
               data={hierarchyData}
-              role={role}
+              role={role === 'ADMIN' ? 'MANAGER' : role}
               onSelectEntity={handleSelectEntity}
               onAddPartner={onAddPartner}
               onEditPartner={onEditPartner}
@@ -214,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onDeletePOS={onDeletePOS}
               onMovePOS={onMovePOS}
               selectedEntityId={selectedEntityId}
-              searchQuery={searchQuery}
+              searchQuery={deferredSearchQuery}
               isDark={isDark}
             />
           </>

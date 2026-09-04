@@ -13,13 +13,13 @@ describe('Saisie API', () => {
     app = createApp();
     const login = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'admin@camtel.local', password: 'Admin123!' });
+      .send({ matricule: 'AGT-001', password: 'Admin123!' });
 
     expect(login.status).toBe(200);
     token = login.body.token;
 
     const suffix = randomUUID();
-    const centre = await db.Centre.create({ nom_centre: `Centre saisie ${suffix}`, region: 'Test' });
+    const centre = await db.Centre.findOne({ where: { code_centre: 'CPDSM 1' } });
     const da = await db.Da.create({ centre_id: centre.id, code: `SAISIE-${suffix}`, nom: `DA ${suffix}`, numero_sim: `SIM-${suffix}`, objectif_mensuel: 31000, active: true });
     const dsm = await db.Dsm.create({ da_id: da.id, nom: `DSM ${suffix}`, statut: 'actif' });
     const pos = await db.Pos.create({ dsm_id: dsm.id, nom: `POS ${suffix}`, statut: 'actif' });
@@ -37,7 +37,6 @@ describe('Saisie API', () => {
     await fixture.pos.destroy();
     await fixture.dsm.destroy();
     await fixture.da.destroy();
-    await fixture.centre.destroy();
   });
 
   test('POST /api/saisies creates a sale with stock and variance computation', async () => {
@@ -75,5 +74,23 @@ describe('Saisie API', () => {
     expect(response.body.ok).toBe(true);
     expect(response.body.data.length).toBeGreaterThan(0);
     expect(response.body.data.every((item) => item.pos_id === testPos.id)).toBe(true);
+  });
+
+  test('GET /api/dashboard/records exposes the real entry author and trace lines', async () => {
+    const month = new Date().toISOString().slice(0, 7);
+    const response = await request(app)
+      .get(`/api/dashboard/records?type=POS&id=${encodeURIComponent(testPos.id)}&month=${month}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.length).toBeGreaterThan(0);
+    const row = response.body.data[0];
+    expect(row.saisi_par).toEqual(expect.objectContaining({
+      email: 'chef@camtel.local',
+      role: 'CHEF_OPE',
+    }));
+    expect(row.saisie_details.lignes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'ACHAT', auteurId: row.saisi_par.id }),
+    ]));
   });
 });

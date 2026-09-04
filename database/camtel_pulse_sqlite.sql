@@ -1,6 +1,6 @@
 -- =====================================================================
 -- Camtel Pulse — Schéma SQLite aligné sur l'implémentation réelle
--- (backend/migrations/*) : 15 tables.
+-- (backend/migrations/*) : 17 tables.
 -- Généré pour remplacer l'ancien schéma à 11 tables désynchronisé.
 -- =====================================================================
 PRAGMA foreign_keys = ON;
@@ -13,7 +13,9 @@ DROP TABLE IF EXISTS acht_journaliere;
 DROP TABLE IF EXISTS vente_dsm_au_pos;
 DROP TABLE IF EXISTS stock;
 DROP TABLE IF EXISTS objectif_mensuel;
+DROP TABLE IF EXISTS demande_acces;
 DROP TABLE IF EXISTS utilisateur;
+DROP TABLE IF EXISTS poste;
 DROP TABLE IF EXISTS pos;
 DROP TABLE IF EXISTS dsm;
 DROP TABLE IF EXISTS da;
@@ -54,6 +56,7 @@ CREATE TABLE da (
     active BOOLEAN NOT NULL DEFAULT 1,
     region VARCHAR(100),
     numero_sim VARCHAR(50) UNIQUE,
+    code_zone VARCHAR(50),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -63,6 +66,9 @@ CREATE TABLE dsm (
     da_id VARCHAR(36) NOT NULL REFERENCES da(id) ON DELETE CASCADE ON UPDATE CASCADE,
     zone_id VARCHAR(36) REFERENCES zone(id) ON DELETE SET NULL ON UPDATE CASCADE,
     nom VARCHAR(150) NOT NULL,
+    numero_telephone VARCHAR(20) UNIQUE,
+    code_dsm VARCHAR(50),
+    code_zone VARCHAR(50),
     raison_sociale VARCHAR(150),
     adresse VARCHAR(255),
     contact VARCHAR(50),
@@ -77,6 +83,10 @@ CREATE TABLE pos (
     dsm_id VARCHAR(36) NOT NULL REFERENCES dsm(id) ON DELETE CASCADE ON UPDATE CASCADE,
     zone_id VARCHAR(36) REFERENCES zone(id) ON DELETE SET NULL ON UPDATE CASCADE,
     nom VARCHAR(150) NOT NULL,
+    numero_telephone VARCHAR(20) UNIQUE,
+    code_pos VARCHAR(50),
+    code_dsm VARCHAR(50),
+    code_zone VARCHAR(50),
     raison_sociale VARCHAR(150),
     adresse VARCHAR(255),
     contact VARCHAR(50),
@@ -109,6 +119,7 @@ CREATE TABLE utilisateur (
     email VARCHAR(150) NOT NULL UNIQUE,
     telephone VARCHAR(50),
     mot_de_passe VARCHAR(255) NOT NULL,
+    must_change_password BOOLEAN NOT NULL DEFAULT 0,
     statut VARCHAR(50) NOT NULL DEFAULT 'actif',
     derniere_connexion DATETIME,
     created_at DATETIME NOT NULL,
@@ -116,10 +127,25 @@ CREATE TABLE utilisateur (
 );
 CREATE INDEX idx_utilisateur_role ON utilisateur(role_id);
 
+-- Affectations métier explicites : plusieurs partenaires par opérationnel et
+-- plusieurs opérationnels par partenaire. `utilisateur.da_id` reste uniquement
+-- une colonne historique de compatibilité.
+CREATE TABLE affectation_operationnel_partenaire (
+    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    utilisateur_id VARCHAR(36) NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    da_id VARCHAR(36) NOT NULL REFERENCES da(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    statut VARCHAR(20) NOT NULL DEFAULT 'actif',
+    affecte_par VARCHAR(36) REFERENCES utilisateur(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (utilisateur_id, da_id)
+);
+CREATE INDEX idx_affectation_partenaire_statut ON affectation_operationnel_partenaire(da_id, statut);
+
 CREATE TABLE demande_acces (
     id VARCHAR(36) PRIMARY KEY NOT NULL,
-    utilisateur_id VARCHAR(36) NOT NULL REFERENCES utilisateur(id),
-    poste_id VARCHAR(36) NOT NULL REFERENCES poste(id),
+    utilisateur_id VARCHAR(36) REFERENCES utilisateur(id),
+    poste_id VARCHAR(36) REFERENCES poste(id),
     role_id VARCHAR(36) NOT NULL REFERENCES role(id),
     nom_complet VARCHAR(150) NOT NULL,
     matricule VARCHAR(50) NOT NULL,
@@ -151,6 +177,7 @@ CREATE TABLE objectif_mensuel (
 
 CREATE TABLE stock (
     id VARCHAR(36) PRIMARY KEY NOT NULL,
+    da_id VARCHAR(36) REFERENCES da(id),
     dsm_id VARCHAR(36) REFERENCES dsm(id),
     pos_id VARCHAR(36) REFERENCES pos(id),
     utilisateur_id VARCHAR(36) REFERENCES utilisateur(id),
@@ -180,6 +207,8 @@ CREATE TABLE vente_dsm_au_pos (
 CREATE TABLE acht_journaliere (
     id VARCHAR(36) PRIMARY KEY NOT NULL,
     da_id VARCHAR(36) NOT NULL REFERENCES da(id),
+    dsm_id VARCHAR(36) REFERENCES dsm(id),
+    scope_type VARCHAR(10) NOT NULL DEFAULT 'LEGACY',
     utilisateur_id VARCHAR(36) REFERENCES utilisateur(id),
     date_achat DATEONLY NOT NULL,
     montant_achat DECIMAL(15,2) DEFAULT 0,
@@ -229,20 +258,35 @@ CREATE TABLE audit_log (
 
 CREATE TABLE calendrier_achat (
     id VARCHAR(36) PRIMARY KEY NOT NULL,
+    da_id VARCHAR(36) REFERENCES da(id),
     dsm_id VARCHAR(36) REFERENCES dsm(id),
-    pos_id VARCHAR(36) NOT NULL REFERENCES pos(id),
+    pos_id VARCHAR(36) REFERENCES pos(id),
     utilisateur_id VARCHAR(36) REFERENCES utilisateur(id),
     date_prevue DATEONLY NOT NULL,
     quantite_prevue DECIMAL(15,2) DEFAULT 0,
     date_saisir DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL
+    updated_at DATETIME NOT NULL,
+    CHECK (
+        (CASE WHEN da_id IS NULL THEN 0 ELSE 1 END) +
+        (CASE WHEN dsm_id IS NULL THEN 0 ELSE 1 END) +
+        (CASE WHEN pos_id IS NULL THEN 0 ELSE 1 END) = 1
+    )
 );
 
 CREATE INDEX idx_da_centre ON da(centre_id);
+CREATE INDEX idx_da_code_zone ON da(code_zone);
 CREATE INDEX idx_dsm_da ON dsm(da_id);
+CREATE UNIQUE INDEX uq_dsm_da_code ON dsm(da_id, code_dsm);
+CREATE INDEX idx_dsm_code_zone ON dsm(code_zone);
 CREATE INDEX idx_pos_dsm ON pos(dsm_id);
+CREATE UNIQUE INDEX uq_pos_dsm_code ON pos(dsm_id, code_pos);
+CREATE INDEX idx_pos_code_zone ON pos(code_zone);
 CREATE INDEX idx_utilisateur_da ON utilisateur(da_id);
 CREATE INDEX idx_objectif_pos ON objectif_mensuel(pos_id);
 CREATE UNIQUE INDEX uq_prevision_pos_date ON prevision_journaliere(pos_id, date_prevision);
+CREATE UNIQUE INDEX uq_prevision_dsm_date ON prevision_journaliere(dsm_id, date_prevision);
+CREATE UNIQUE INDEX uq_prevision_da_date ON prevision_journaliere(da_id, date_prevision);
 CREATE UNIQUE INDEX uq_calendrier_pos_date ON calendrier_achat(pos_id, date_prevue);
+CREATE UNIQUE INDEX uq_calendrier_dsm_date ON calendrier_achat(dsm_id, date_prevue);
+CREATE UNIQUE INDEX uq_calendrier_da_date ON calendrier_achat(da_id, date_prevue);

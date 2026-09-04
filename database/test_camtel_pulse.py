@@ -23,20 +23,25 @@ def insert(table, **cols):
     marks = ", ".join("?" for _ in cols)
     conn.execute(f"INSERT INTO {table} ({cols_str}) VALUES ({marks})", list(cols.values()))
 
-# --- Référentiels ---
+# Ce script détruit et recrée uniquement database/camtel_pulse.db avec des
+# fixtures synthétiques. Il ne touche jamais à backend/camtel_pulse.db.
+
+# --- Référentiels de test ---
 insert("zone", id="Z001", nom_zone="Zone Littoral", region="Littoral", created_at=NOW, updated_at=NOW)
 insert("centre", id="C001", nom_centre="Centre 1 CDPSM", region="Littoral", created_at=NOW, updated_at=NOW)
 insert("role", id="R001", libelle="Admin", description="Administrateur", created_at=NOW, updated_at=NOW)
 
 # --- Réseau ---
-insert("da", id="DA001", centre_id="C001", code="DA-001", nom="Glotelho",
-       objectif_mensuel=3400000, active=1, region="Littoral", numero_sim="237690000001",
+insert("da", id="DA001", centre_id="C001", code="MASTER_SIM_ZONE_TEST_1", nom="Partenaire Test",
+       objectif_mensuel=3400000, active=1, region="Littoral", numero_sim="690000001", code_zone="TEST_1",
        created_at=NOW, updated_at=NOW)
-insert("dsm", id="DSM001", da_id="DA001", zone_id="Z001", nom="DSM Glotelho 1",
-       raison_sociale="Glotelho SARL", adresse="Douala", contact="+237690000010",
+insert("dsm", id="DSM001", da_id="DA001", zone_id="Z001", nom="DSM Test 1",
+       numero_telephone="690000010", code_dsm="DSM1", code_zone="LT1",
+       raison_sociale="Entité de test", adresse="Douala", contact="690000010",
        statut="actif", date_adhesion=TODAY, created_at=NOW, updated_at=NOW)
-insert("pos", id="POS001", dsm_id="DSM001", zone_id="Z001", nom="POS Glotelho 1A",
-       raison_sociale="Point Glotelho 1A", adresse="Douala", contact="+237690000014",
+insert("pos", id="POS001", dsm_id="DSM001", zone_id="Z001", nom="POS1_DSM1_LT1",
+       numero_telephone="690000014", code_pos="POS1", code_dsm="DSM1", code_zone="LT1",
+       raison_sociale="Point de test", adresse="Douala", contact="690000014",
        statut="actif", date_adhesion=TODAY, created_at=NOW, updated_at=NOW)
 
 # --- Utilisateur ---
@@ -68,7 +73,7 @@ insert("correction", id="COR001", vente_id="V001", pos_id="POS001", utilisateur_
 insert("audit_log", id="AUD001", utilisateur_id="USR001", action="saisie_creee",
        entite="pos", entite_id="POS001", details='{"vente_jour": 15000}',
        created_at=NOW, updated_at=NOW)
-insert("calendrier_achat", id="CAL001", dsm_id="DSM001", pos_id="POS001", utilisateur_id="USR001",
+insert("calendrier_achat", id="CAL001", da_id=None, dsm_id=None, pos_id="POS001", utilisateur_id="USR001",
        date_prevue=TODAY, quantite_prevue=22000.0, date_saisir=NOW, created_at=NOW, updated_at=NOW)
 
 conn.commit()
@@ -81,7 +86,7 @@ ORDER BY name
 
 fk_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
 
-assert len(tables) == 15, f"Nombre de tables incorrect: {len(tables)}"
+assert len(tables) == 17, f"Nombre de tables incorrect: {len(tables)}"
 assert not fk_errors, fk_errors
 
 print("=== CAMTEL PULSE - TEST SQLITE ===")

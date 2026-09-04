@@ -1,9 +1,10 @@
 import React from 'react';
-import { Activity, Archive, FileUp, Network, ScrollText, Target, Users, X } from 'lucide-react';
+import { Archive, FileUp, ScrollText, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { PlatformLogo } from '../common/PlatformLogo';
 
 interface Props {
-  selected: 'users' | 'network' | 'objectives' | 'imports' | 'audit' | 'snapshots';
+  selected: 'users' | 'imports' | 'audit' | 'snapshots';
   onSelect: (s: Props['selected']) => void;
   userName?: string;
   /** Drawer mobile : ouvert ? (ignoré sur desktop) */
@@ -15,8 +16,6 @@ interface Props {
 
 const items: Array<{ key: Props['selected']; label: string; icon: LucideIcon }> = [
   { key: 'users', label: 'Utilisateurs', icon: Users },
-  { key: 'network', label: 'Réseau', icon: Network },
-  { key: 'objectives', label: 'Objectifs', icon: Target },
   { key: 'imports', label: 'Imports', icon: FileUp },
   { key: 'snapshots', label: 'Tableaux enregistrés', icon: Archive },
   { key: 'audit', label: 'Journal d’audit', icon: ScrollText },
@@ -29,22 +28,16 @@ const AdminSidebar: React.FC<Props> = ({ selected, onSelect, userName, isOpen = 
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
-      <div className={`flex items-start justify-between border-b p-4 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm">
-            <Activity className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <div className={`mb-1 text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Administration</div>
-            <div className={`max-w-[140px] truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{userName}</div>
-          </div>
-        </div>
+      <div className={`relative flex flex-col items-center border-b p-4 text-center ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+        <PlatformLogo size="modal" />
+        <div className={`mt-2 text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Administration</div>
+        <div className={`mt-0.5 max-w-[190px] truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{userName}</div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Fermer le menu"
           title="Fermer le menu"
-          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 lg:hidden"
+          className="absolute right-3 top-3 cursor-pointer rounded-lg p-1 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-400 dark:hover:bg-slate-800 lg:hidden"
         >
           <X className="h-4 w-4" />
         </button>

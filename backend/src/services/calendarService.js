@@ -3,7 +3,6 @@ const db = require('../models');
 class CalendarService {
   generateMonth({ entityType = 'pos', entityId, year = new Date().getFullYear(), month = new Date().getMonth() + 1, objective = 0 }) {
     const monthIndex = Number(month) - 1;
-    const date = new Date(Number(year), monthIndex, 1);
     const daysInMonth = new Date(Number(year), Number(monthIndex) + 1, 0).getDate();
     const goal = Number(objective || 0);
     const baseThreshold = goal > 0 ? (goal / 31) * 3 : 0;

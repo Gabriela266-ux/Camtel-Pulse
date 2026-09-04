@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
-import { Eraser, FileSpreadsheet, FileText, Save } from 'lucide-react';
+import { Eraser, Eye, FileSpreadsheet, FileText, Save } from 'lucide-react';
 import type { DailyRecord } from '../../types';
+import { EntryDetailsModal } from './EntryDetailsModal';
 
 interface DailyTrackingTableProps {
   records: DailyRecord[];
@@ -12,10 +12,13 @@ interface DailyTrackingTableProps {
   isDark?: boolean;
   purchaseLabel?: string;
   stockSecurite?: number;
-  /** Sauvegarde activée (Opérationnel / Chef / Admin). */
+  /** Actions de modification réservées aux rôles opérationnels. */
+  canClear?: boolean;
   canSave?: boolean;
   onSaveSnapshot?: () => Promise<void>;
   onRefresh?: () => Promise<void> | void;
+  canViewDetails?: boolean;
+  entityName?: string;
 }
 
 const formatDate = (value: string) => {
@@ -62,9 +65,10 @@ const StatusDot: React.FC<{ status: 'NORMAL' | 'CRITIQUE' | null }> = ({ status 
   />
 );
 
-function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecurite: number) {
+async function downloadExcel(records: DailyRecord[], purchaseLabel: string, stockSecurite: number) {
+  const XLSX = await import('xlsx');
   const cumulMap = computeCumulCalendrier(records);
-  const rows = records.map((record) => {
+  const rows = [...records].sort((a, b) => a.date.localeCompare(b.date)).map((record) => {
     const cumulCalendrier = cumulMap.get(record.date) ?? 0;
     const ecartCalendrier = record.cumul_achat - cumulCalendrier;
 
@@ -126,15 +130,19 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
   isDark = false,
   purchaseLabel = 'Achat (U)',
   stockSecurite = 0,
+  canClear = false,
   canSave = false,
   onSaveSnapshot,
   onRefresh,
+  canViewDetails = false,
+  entityName = 'Entité sélectionnée',
 }) => {
   const [downloadType, setDownloadType] = useState<'xlsx' | 'pdf' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'ok' | 'error' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<DailyRecord | null>(null);
 
   const headers = [
     'Date',
@@ -147,16 +155,21 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
     'Cumul achat (U)',
     'Écart Calendrier d\'Achat (U)',
     'Statut',
+    ...(canViewDetails ? ['Saisi par', 'Détails'] : []),
   ];
 
-  const cumulMap = useMemo(() => computeCumulCalendrier(records), [records]);
+  const sortedRecords = useMemo(
+    () => [...records].sort((a, b) => a.date.localeCompare(b.date)),
+    [records],
+  );
+  const cumulMap = useMemo(() => computeCumulCalendrier(sortedRecords), [sortedRecords]);
 
   // Totaux par colonne numérique (affichés en pied de tableau et transmis au serveur).
   const totals = useMemo(() => {
     const stock = records.reduce((s, r) => s + Number(r.stock_journalier || 0), 0);
     const prevision = records.reduce((s, r) => s + Number(r.prevision_ca || 0), 0);
     const achat = records.reduce((s, r) => s + Number(r.achat || 0), 0);
-    const cumulFinal = records.length ? Number(records[records.length - 1].cumul_achat || 0) : 0;
+    const cumulFinal = sortedRecords.length ? Number(sortedRecords[sortedRecords.length - 1].cumul_achat || 0) : 0;
     return {
       stock: Math.round(stock * 100) / 100,
       prevision: Math.round(prevision * 100) / 100,
@@ -165,7 +178,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
       ecartStock: records.reduce((s, r) => s + (r.stock_journalier !== null ? r.stock_journalier - stockSecurite : 0), 0),
       ecartCalendrier: records.reduce((s, r) => s + (r.cumul_achat - (cumulMap.get(r.date) ?? 0)), 0),
     };
-  }, [records, stockSecurite, cumulMap]);
+  }, [records, sortedRecords, stockSecurite, cumulMap]);
 
   const handleSave = async () => {
     if (!onSaveSnapshot || saving || records.length === 0) return;
@@ -195,7 +208,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
   const openPrintWindow = () => {
     const tableRows = [
       [...headers],
-      ...[...records].reverse().map((r) => {
+      ...sortedRecords.map((r) => {
         const cumulCalendrier = cumulMap.get(r.date) ?? 0;
         const ecartCalendrier = r.cumul_achat - cumulCalendrier;
         return [
@@ -257,7 +270,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
       setDownloadError(null);
       setDownloadType('xlsx');
       await downloadExcel(records, purchaseLabel, stockSecurite);
-    } catch (error) {
+    } catch {
       setDownloadError('Impossible de générer le fichier Excel. Réessayez.');
     } finally {
       setDownloadType(null);
@@ -269,7 +282,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
       setDownloadError(null);
       setDownloadType('pdf');
       await Promise.resolve(openPrintWindow());
-    } catch (error) {
+    } catch {
       setDownloadError('Impossible de générer le fichier PDF. Réessayez.');
     } finally {
       setDownloadType(null);
@@ -287,7 +300,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {onRefresh && (
+          {canClear && onRefresh && (
             <button
               type="button"
               onClick={handleRefresh}
@@ -324,24 +337,22 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave || records.length === 0 || saving}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
-              isDark
-                ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20'
-                : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
-            }`}
-            title={
-              canSave
-                ? 'Enregistrer ce tableau dans la base (immuable)'
-                : 'La consultation / le téléchargement sont réservés à la direction (lecture seule)'
-            }
-          >
-            <Save className="h-4 w-4" />
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
+          {canSave && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={records.length === 0 || saving}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDark
+                  ? 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20'
+                  : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+              }`}
+              title="Enregistrer ce tableau dans la base (immuable)"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          )}
 
           <button
             type="button"
@@ -415,7 +426,7 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
             </tr>
           </thead>
           <tbody>
-            {[...records].reverse().map((record) => {
+            {sortedRecords.map((record) => {
               const todayKey = new Date().toISOString().slice(0, 10);
               const isToday = record.date === todayKey;
               const ecartStockSecurite = record.stock_journalier !== null ? record.stock_journalier - stockSecurite : null;
@@ -472,6 +483,19 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                   <td className="px-4 py-2.5">
                     <StatusDot status={ecartCalendrier >= 0 ? 'NORMAL' : 'CRITIQUE'} />
                   </td>
+                  {canViewDetails && (
+                    <>
+                      <td className={`max-w-[180px] px-4 py-2.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        <p className="truncate text-xs font-bold">{record.saisi_par?.nomComplet || record.saisi_par?.email || 'Ancienne donnée'}</p>
+                        {record.saisi_par?.role && <p className="mt-0.5 text-[10px] text-slate-400">{record.saisi_par.role} / Chef : {record.saisi_par.chefOperationnel?.nomComplet || 'Non applicable'}</p>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <button type="button" onClick={() => setDetailRecord(record)} className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-950/70">
+                          <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Voir
+                        </button>
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
@@ -504,10 +528,12 @@ export const DailyTrackingTable: React.FC<DailyTrackingTableProps> = ({
                 {totals.ecartCalendrier >= 0 ? '+' : ''}{totals.ecartCalendrier.toLocaleString('fr-FR')}
               </td>
               <td className={`border-t px-4 py-2.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`} />
+              {canViewDetails && <><td className={`border-t px-4 py-2.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`} /><td className={`border-t px-4 py-2.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`} /></>}
             </tr>
           </tfoot>
         </table>
       </div>
+      {detailRecord && <EntryDetailsModal record={detailRecord} entityName={entityName} isDark={isDark} onClose={() => setDetailRecord(null)} />}
     </section>
   );
 };

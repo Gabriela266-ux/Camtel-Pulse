@@ -3,13 +3,14 @@ import React, { useState } from 'react';
 export interface TemporaryCredentials {
   name: string;
   email: string;
+  matricule?: string;
   password: string;
 }
 
 export const TemporaryPasswordModal: React.FC<{ credentials: TemporaryCredentials; onClose: () => void }> = ({ credentials, onClose }) => {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(`Utilisateur : ${credentials.name}\nEmail : ${credentials.email}\nMot de passe temporaire : ${credentials.password}`);
+    await navigator.clipboard.writeText(`Utilisateur : ${credentials.name}\nMatricule : ${credentials.matricule || 'Non renseigné'}\nEmail : ${credentials.email}\nMot de passe temporaire : ${credentials.password}`);
     setCopied(true);
   };
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4">
@@ -18,6 +19,7 @@ export const TemporaryPasswordModal: React.FC<{ credentials: TemporaryCredential
       <p className="mt-2 text-sm text-amber-700">Copiez ces informations maintenant. Le mot de passe ne pourra plus être affiché après fermeture.</p>
       <dl className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4 text-sm">
         <div><dt className="font-bold text-slate-500">Utilisateur</dt><dd>{credentials.name}</dd></div>
+        <div><dt className="font-bold text-slate-500">Matricule de connexion</dt><dd className="font-mono font-black">{credentials.matricule || 'Non renseigné'}</dd></div>
         <div><dt className="font-bold text-slate-500">Email</dt><dd>{credentials.email}</dd></div>
         <div><dt className="font-bold text-slate-500">Mot de passe temporaire</dt><dd className="font-mono text-base font-black">{credentials.password}</dd></div>
       </dl>

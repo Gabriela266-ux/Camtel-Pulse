@@ -21,6 +21,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       references: { model: 'role', key: 'id' }
     },
+    centre_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'centre', key: 'id' }
+    },
+    chef_operationnel_id: {
+      type: DataTypes.STRING(36),
+      allowNull: true,
+      references: { model: 'utilisateur', key: 'id' }
+    },
     nom_complet: {
       type: DataTypes.STRING(150),
       allowNull: false
@@ -65,6 +75,8 @@ module.exports = (sequelize, DataTypes) => {
     DemandeAcces.belongsTo(models.Utilisateur, { foreignKey: 'utilisateur_id', as: 'user' });
     DemandeAcces.belongsTo(models.Poste, { foreignKey: 'poste_id', as: 'poste' });
     DemandeAcces.belongsTo(models.Role, { foreignKey: 'role_id', as: 'role' });
+    DemandeAcces.belongsTo(models.Centre, { foreignKey: 'centre_id', as: 'centre' });
+    DemandeAcces.belongsTo(models.Utilisateur, { foreignKey: 'chef_operationnel_id', as: 'chefOperationnel' });
     // Administrateur ayant validé / refusé la demande.
     DemandeAcces.belongsTo(models.Utilisateur, { foreignKey: 'valide_par', as: 'validateur' });
   };

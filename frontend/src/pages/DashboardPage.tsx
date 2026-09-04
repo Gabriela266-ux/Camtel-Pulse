@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Bell, CheckCircle2, Home, LogOut, Menu, Moon, Search, SunMedium } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -16,16 +16,21 @@ import type {
   DashboardData,
   EntitySelection,
   EntityType,
+  CreateDsmPayload,
+  CreatePosPayload,
   OperationalAssignment,
 } from '../types';
 import type { AddPartnerPayload, Operationnel } from '../types';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/useAuth';
 import { ConsumptionChart } from '../components/dashboard/ConsumptionChart';
 import { ProgressIndicators } from '../components/dashboard/ProgressIndicators';
 import { RoleWorkspace } from '../components/dashboard/RoleWorkspace';
 import { AddPartnerModal } from '../components/dashboard/AddPartnerModal';
+import { NetworkEntityModal } from '../components/dashboard/NetworkEntityModal';
+import type { NetworkEntityContext } from '../components/dashboard/NetworkEntityModal';
 import { AlertDetailsModal } from '../components/dashboard/AlertDetailsModal';
 import { SnapshotsPanel } from '../components/dashboard/SnapshotsPanel';
+import { findFirstHierarchyMatch } from '../utils/hierarchySearch';
 
 interface DashboardPageProps {
   isDark: boolean;
@@ -56,28 +61,28 @@ function daysInCurrentMonthFor(dateStr: string) {
   return new Date(year, month, 0).getDate();
 }
 
+const EMPTY_HIERARCHY: DAHierarchy = { id: '', nom: '', da: [] };
+const EMPTY_DASHBOARD: DashboardData = {
+  entite_id: '',
+  nom_entite: '',
+  kpi: {
+    objectif_mensuel: 0,
+    achat_cumule: 0,
+    stock_securite: 0,
+    ecart_jour: 0,
+    ecart_cumule: 0,
+    statut_alerte: 'NORMAL',
+    consommation: 0,
+  },
+};
+
 export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const emptyHierarchy: DAHierarchy = { id: '', nom: '', da: [] };
-  const emptyDashboard: DashboardData = {
-    entite_id: '',
-    nom_entite: '',
-    kpi: {
-      objectif_mensuel: 0,
-      achat_cumule: 0,
-      stock_securite: 0,
-      ecart_jour: 0,
-      ecart_cumule: 0,
-      statut_alerte: 'NORMAL',
-      consommation: 0,
-    },
-  };
-
-  const [hierarchyData, setHierarchyData] = useState<DAHierarchy>(emptyHierarchy);
-  const [dashboardData, setDashboardData] = useState<DashboardData>(emptyDashboard);
+  const [hierarchyData, setHierarchyData] = useState<DAHierarchy>(EMPTY_HIERARCHY);
+  const [dashboardData, setDashboardData] = useState<DashboardData>(EMPTY_DASHBOARD);
   const [selectedEntityType, setSelectedEntityType] = useState<EntityType>('DA');
   const [selectedEntity, setSelectedEntity] = useState<EntitySelection | null>(null);
   const [records, setRecords] = useState<DailyRecord[]>([]);
@@ -85,6 +90,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const entityRequestSequence = useRef(0);
   const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   const [referenceDate, setReferenceDate] = useState(new Date().toISOString().slice(0, 10));
+  const initialMonth = useRef(referenceDate.slice(0, 7));
   const [globalSearch, setGlobalSearch] = useState('');
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [objectiveModalOpen, setObjectiveModalOpen] = useState(false);
@@ -93,15 +99,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [operationnels, setOperationnels] = useState<Operationnel[]>([]);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
   const [addPartnerModalOpen, setAddPartnerModalOpen] = useState(false);
+  const [networkEntityContext, setNetworkEntityContext] = useState<NetworkEntityContext | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedDetailEntity, setSelectedDetailEntity] = useState<{ id: string; nom: string } | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const role = user?.role ?? 'OPERATIONNEL';
   const canCreateEntry = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
-  // Le Manager ne peut que consulter/télécharger : l'enregistrement est réservé
-  // à l'Opérationnel, au Chef opérationnel et à l'Admin.
-  const canSaveSnapshot = role !== 'MANAGER';
+  // Le dashboard Admin suit le même principe que celui du Manager : consultation
+  // et téléchargement uniquement. Les mutations restent dans l'espace Admin.
+  const canSaveSnapshot = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
+  const canClearTracking = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
   const canCreateForecast = role === 'OPERATIONNEL' || role === 'CHEF_OPE';
 
   useEffect(() => {
@@ -111,19 +119,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   }, [toast]);
 
   const isOperational = role === 'OPERATIONNEL';
-  const visibleHierarchy =
-    isOperational && user?.partenaireId
-      ? {
-          ...hierarchyData,
-          da: hierarchyData.da.filter((da) => da.id === user.partenaireId),
-        }
-      : hierarchyData;
+  const assignedPartnerIds = useMemo(() => user?.partenaireIds?.length
+    ? user.partenaireIds
+    : user?.partenaireId ? [user.partenaireId] : [], [user?.partenaireId, user?.partenaireIds]);
+  const visibleHierarchy = isOperational
+    ? { ...hierarchyData, da: hierarchyData.da.filter((da) => assignedPartnerIds.includes(da.id)) }
+    : hierarchyData;
 
-  const canManageNetwork = role === 'CHEF_OPE' || role === 'OPERATIONNEL';
+  const canAccessDA = (daId: string) => role !== 'OPERATIONNEL' || assignedPartnerIds.includes(daId);
 
-  const canAccessDA = (daId: string) => role !== 'OPERATIONNEL' || user?.partenaireId === daId;
-
-  const loadSelectedEntity = async (entity: EntitySelection, month = referenceDate.slice(0, 7)): Promise<void> => {
+  const loadSelectedEntity = useCallback(async (entity: EntitySelection, month: string): Promise<void> => {
     const requestSequence = entityRequestSequence.current + 1;
     entityRequestSequence.current = requestSequence;
     setSelectedEntity(entity);
@@ -131,7 +136,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setLoadingEntity(true);
     setRecords([]);
     setDashboardData({
-      ...emptyDashboard,
+      ...EMPTY_DASHBOARD,
       entite_id: entity.id,
       nom_entite: entity.nom,
     });
@@ -153,7 +158,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     } finally {
       if (entityRequestSequence.current === requestSequence) setLoadingEntity(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     setLoadingHierarchy(true);
@@ -161,9 +166,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .getHierarchie()
       .then((data) => {
         setHierarchyData(data);
-        const firstDA = data.da[0];
+        const firstDA = isOperational
+          ? data.da.find((da) => assignedPartnerIds.includes(da.id))
+          : data.da[0];
         if (firstDA) {
-          void loadSelectedEntity({ type: 'DA', id: firstDA.id, nom: firstDA.nom });
+          void loadSelectedEntity({ type: 'DA', id: firstDA.id, nom: firstDA.nom }, initialMonth.current);
         }
       })
       .catch((err) => console.error('Impossible de charger la hiérarchie :', err))
@@ -178,33 +185,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .getAffectations()
       .then((data) => setAssignments(data))
       .catch((err) => console.error('Impossible de charger les affectations :', err));
-  }, []);
+  }, [assignedPartnerIds, isOperational, loadSelectedEntity]);
 
   const handleSelectEntity = (entity: EntitySelection) => {
-    void loadSelectedEntity(entity);
+    void loadSelectedEntity(entity, referenceDate.slice(0, 7));
   };
 
   const handleGlobalSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    const query = globalSearch.trim().toLocaleLowerCase('fr');
-    if (!query) return;
-    for (const partner of visibleHierarchy.da) {
-      if (partner.nom.toLocaleLowerCase('fr').includes(query)) {
-        handleSelectEntity({ type: 'DA', id: partner.id, nom: partner.nom });
-        return;
-      }
-      for (const dsm of partner.dsm) {
-        if (dsm.nom.toLocaleLowerCase('fr').includes(query)) {
-          handleSelectEntity({ type: 'DSM', id: dsm.id, nom: dsm.nom });
-          return;
-        }
-        const pos = dsm.pos.find((item) => item.nom.toLocaleLowerCase('fr').includes(query));
-        if (pos) {
-          handleSelectEntity({ type: 'POS', id: pos.id, nom: pos.nom });
-          return;
-        }
-      }
+    const result = findFirstHierarchyMatch(visibleHierarchy, globalSearch);
+    if (result) {
+      handleSelectEntity(result);
+      return;
     }
+    setToast({ type: 'error', message: 'Aucune entité trouvée pour ce nom, numéro, code ou cette zone.' });
   };
 
   const handleRefreshDashboard = async (): Promise<void> => {
@@ -213,7 +207,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     if (!window.confirm(`Vider définitivement le suivi de ${selectedEntity.nom} pour ${activeMonth} ? Cette action supprime les saisies, stocks et calendriers de la période.`)) return;
     try {
       const result = await apiService.clearDailyTracking(selectedEntity.type, selectedEntity.id, activeMonth);
-      await loadSelectedEntity(selectedEntity);
+      await loadSelectedEntity(selectedEntity, activeMonth);
       setToast({ type: 'success', message: `${result.deleted} enregistrement(s) supprimé(s).` });
     } catch (error) {
       setToast({ type: 'error', message: error instanceof Error ? error.message : 'Vidage impossible.' });
@@ -222,10 +216,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
   const handleAddPartner = () => {
     setAddPartnerModalOpen(true);
-    apiService
-      .getOperationnels()
-      .then((data) => setOperationnels(Array.isArray(data) ? data : []))
-      .catch((err) => console.error('Impossible de charger les opérationnels :', err));
   };
 
   const handleShowDetails = () => {
@@ -233,21 +223,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     setIsDetailsOpen(true);
   };
 
-  const handleCreatePartner = (payload: AddPartnerPayload) => {
-    apiService
-      .creerPartenaire(payload)
-      .then(() => {
-        setAddPartnerModalOpen(false);
-        apiService
-          .getHierarchie()
-          .then((data) => setHierarchyData(data))
-          .catch((err) => console.error('Impossible de recharger la hiérarchie :', err));
-        apiService
-          .getAffectations()
-          .then((data) => setAssignments(data))
-          .catch((err) => console.error('Impossible de recharger les affectations :', err));
-      })
-      .catch((err) => console.error('Échec de la création du partenaire :', err));
+  const handleCreatePartner = async (payload: AddPartnerPayload): Promise<void> => {
+    try {
+      await apiService.creerPartenaire(payload);
+      const [hierarchy, refreshedAssignments] = await Promise.all([
+        apiService.getHierarchie(),
+        apiService.getAffectations(),
+      ]);
+      setHierarchyData(hierarchy);
+      setAssignments(refreshedAssignments);
+      setAddPartnerModalOpen(false);
+      setToast({ type: 'success', message: 'Partenaire créé sans affectation automatique.' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Création du partenaire impossible.';
+      setToast({ type: 'error', message });
+      throw error;
+    }
   };
 
   const reloadHierarchy = async () => {
@@ -287,19 +278,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }
   };
 
-  const handleAddDSM = async (daId: string) => {
+  const handleAddDSM = (daId: string) => {
     if (!canAccessDA(daId)) return;
-
-    const nom = window.prompt('Nom du DSM à ajouter');
-    if (!nom?.trim()) return;
-
-    try {
-      await apiService.createDsm(daId, nom.trim());
-      await reloadHierarchy();
-      setToast({ type: 'success', message: 'DSM créé et enregistré.' });
-    } catch (err) {
-      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Création du DSM impossible.' });
-    }
+    const partner = hierarchyData.da.find((item) => item.id === daId);
+    if (!partner) return;
+    setNetworkEntityContext({
+      type: 'DSM',
+      daId,
+      partnerName: partner.nom,
+      partnerZone: partner.code_zone,
+    });
   };
 
   const handleEditDSM = async (dsmId: string) => {
@@ -343,21 +331,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
     }
   };
 
-  const handleAddPOS = async (dsmId: string) => {
+  const handleAddPOS = (dsmId: string) => {
     const parentDA = hierarchyData.da.find((da) =>
       da.dsm.some((dsm) => dsm.id === dsmId),
     );
     if (!parentDA || !canAccessDA(parentDA.id)) return;
+    const dsm = parentDA.dsm.find((item) => item.id === dsmId);
+    if (!dsm) return;
+    if (!dsm.code_dsm || !dsm.code_zone) {
+      setToast({ type: 'error', message: 'Complétez le code DSM et le code zone avant d’ajouter un POS.' });
+      return;
+    }
+    setNetworkEntityContext({
+      type: 'POS',
+      dsmId,
+      dsmName: dsm.nom,
+      codeDsm: dsm.code_dsm,
+      codeZone: dsm.code_zone,
+    });
+  };
 
-    const nom = window.prompt('Nom du POS à ajouter');
-    if (!nom?.trim()) return;
-
+  const handleCreateNetworkEntity = async (payload: CreateDsmPayload | CreatePosPayload): Promise<void> => {
     try {
-      await apiService.createPos(dsmId, nom.trim());
+      if ('da_id' in payload) {
+        await apiService.createDsm(payload);
+      } else {
+        await apiService.createPos(payload);
+      }
       await reloadHierarchy();
-      setToast({ type: 'success', message: 'POS créé et enregistré.' });
-    } catch (err) {
-      setToast({ type: 'error', message: err instanceof Error ? err.message : 'Création du POS impossible.' });
+      setNetworkEntityContext(null);
+      setToast({ type: 'success', message: `${'da_id' in payload ? 'DSM' : 'POS'} créé et enregistré.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Création de l’entité impossible.';
+      setToast({ type: 'error', message });
+      throw error;
     }
   };
 
@@ -543,15 +550,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const handleAssignmentChange = async (updatedAssignment: OperationalAssignment): Promise<void> => {
     try {
       const saved = await apiService.changerAffectation(String(updatedAssignment.userId), {
-        partenaireId: updatedAssignment.partenaireId,
-        dsmId: updatedAssignment.dsmId ?? null,
-        posId: updatedAssignment.posId ?? null,
+        partenaireIds: updatedAssignment.partenaireIds,
       });
       setAssignments((currentAssignments) =>
         currentAssignments.map((assignment) => assignment.userId === saved.userId ? saved : assignment),
       );
       setAssignmentToEdit(null);
-      setToast({ type: 'success', message: 'Affectation enregistrée avec les identifiants de la base.' });
+      setToast({ type: 'success', message: 'Affectations enregistrées et historisées.' });
     } catch (error) {
       setToast({ type: 'error', message: error instanceof Error ? error.message : "Échec de l’affectation." });
       throw error;
@@ -650,9 +655,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
               </p>
               <h1 className={`truncate text-base font-black sm:text-lg ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{dashboardData.nom_entite}</h1>
               <p className={`hidden truncate text-xs sm:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {canManageNetwork
-                  ? 'Gestion DSM/POS réservée au Chef opérationnel'
-                  : 'Vue opérationnelle et suivi journalier'}
+                {role === 'CHEF_OPE'
+                  ? 'Création des partenaires et gestion complète du réseau'
+                  : role === 'OPERATIONNEL'
+                    ? 'Création DSM/POS dans le partenaire affecté'
+                    : 'Vue de consultation des indicateurs'}
               </p>
             </div>
           </div>
@@ -664,8 +671,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
                 type="search"
                 value={globalSearch}
                 onChange={(event) => setGlobalSearch(event.target.value)}
-                placeholder="Rechercher partenaire, DSM, POS…"
-                aria-label="Recherche globale"
+                placeholder="Nom, numéro, zone, DSM, POS…"
+                aria-label="Recherche globale par nom, numéro, code ou zone"
                 className={`w-64 rounded-xl border py-2 pl-9 pr-3 text-xs outline-none ${isDark ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-400'}`}
               />
             </form>
@@ -884,13 +891,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             onRefresh={handleRefreshDashboard}
             isDark={isDark}
             stockSecurite={stockSecurite}
+            canClear={canClearTracking}
             canSave={canSaveSnapshot}
             onSaveSnapshot={handleSaveSnapshot}
+            canViewDetails={role === 'ADMIN' || role === 'MANAGER' || role === 'CHEF_OPE'}
+            entityName={selectedEntity?.nom ?? dashboardData.nom_entite}
           />
 
           {/* Tableaux stockés : consultation + téléchargement (Admin / Manager / Chef). */}
           {(role === 'ADMIN' || role === 'MANAGER' || role === 'CHEF_OPE') && (
-            <SnapshotsPanel isDark={isDark} />
+            <SnapshotsPanel isDark={isDark} allowDelete={false} />
           )}
         </main>
       </div>
@@ -932,6 +942,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
         <AssignmentModal
           assignment={assignmentToEdit}
           partners={hierarchyData.da}
+          isDark={isDark}
           onClose={() => setAssignmentToEdit(null)}
           onSubmit={handleAssignmentChange}
         />
@@ -939,11 +950,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
 
       <AddPartnerModal
         isOpen={addPartnerModalOpen}
-        operationnels={operationnels}
-        chefName={user?.nom_complet}
         isDark={isDark}
         onClose={() => setAddPartnerModalOpen(false)}
         onSubmit={handleCreatePartner}
+      />
+
+      <NetworkEntityModal
+        context={networkEntityContext}
+        isDark={isDark}
+        onClose={() => setNetworkEntityContext(null)}
+        onSubmit={handleCreateNetworkEntity}
       />
 
       {isDetailsOpen && selectedDetailEntity && (

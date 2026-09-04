@@ -5,7 +5,7 @@ const { getEntityDashboard, getDailyRecords } = require('../src/services/entityD
 describe('Dashboard entity isolation', () => {
   test('keeps KPI and daily rows scoped to the selected partner', async () => {
     const suffix = randomUUID();
-    const center = await db.Centre.create({ nom_centre: `Centre ${suffix}`, region: 'Centre' });
+    const center = await db.Centre.create({ nom_centre: `Centre ${suffix}`, code_centre: `CPDSM TEST ISO ${suffix.slice(0, 12)}`, region: 'Centre' });
     const created = { center, partners: [], dsms: [], pos: [] };
 
     try {

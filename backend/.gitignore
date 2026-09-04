@@ -5,3 +5,7 @@ npm-debug.log*
 .DS_Store
 *_output*.txt
 detailed_seed.txt
+*.db
+*.db-*
+*.db.*
+server.pid

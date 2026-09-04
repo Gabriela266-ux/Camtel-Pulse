@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type { DailyRecord, OperationalAssignment, AppRole } from '../../types';
-import type { User } from '../../auth/AuthContext';
+import type { User } from '../../auth/authState';
 
 interface AlertDetailsModalProps {
   user: User | null;
@@ -14,6 +14,7 @@ interface AlertDetailsModalProps {
 }
 
 const ROLE_BADGE: Record<AppRole, { label: string; className: string }> = {
+  SUPER_ADMIN: { label: 'Super administrateur', className: 'bg-violet-100 text-violet-700' },
   ADMIN: { label: 'Administrateur', className: 'bg-sky-100 text-sky-700' },
   MANAGER: { label: 'Manager', className: 'bg-slate-100 text-slate-700' },
   CHEF_OPE: { label: 'Chef opérationnel', className: 'bg-sky-100 text-sky-700' },
@@ -44,7 +45,7 @@ export const AlertDetailsModal: React.FC<AlertDetailsModalProps> = ({
   const dailySorted = [...records].sort((a, b) => b.date.localeCompare(a.date));
   const isOperationnel = role === 'OPERATIONNEL';
   const isChef = role === 'CHEF_OPE';
-  const isPilote = role === 'ADMIN' || role === 'MANAGER';
+  const isPilote = role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'MANAGER';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={(event) => event.target === event.currentTarget && onClose()}>
@@ -133,7 +134,7 @@ export const AlertDetailsModal: React.FC<AlertDetailsModalProps> = ({
               </h3>
               {(() => {
                 const partnerAssignments = entityId
-                  ? assignments.filter((a) => a.partenaireId === entityId)
+                  ? assignments.filter((assignment) => assignment.partenaireIds?.includes(entityId) || assignment.partenaireId === entityId)
                   : assignments;
                 if (partnerAssignments.length === 0) {
                   return <p className={`mt-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aucun opérationnel rattaché.</p>;
@@ -144,7 +145,7 @@ export const AlertDetailsModal: React.FC<AlertDetailsModalProps> = ({
                       <div key={assignment.userId} className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-slate-50'}`}>
                         <div>
                           <p className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{assignment.nomComplet}</p>
-                          <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{assignment.partenaireNom}</p>
+                          <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{assignment.partenaires?.map((partner) => partner.nom).join(', ') || assignment.partenaireNom || 'Non affecté'}</p>
                         </div>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>Affecté</span>
                       </div>

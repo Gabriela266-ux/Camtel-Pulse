@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CalendarDays, Filter, Moon, SunMedium } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Eye, Filter, Moon, SunMedium, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/useAuth';
 import { apiService } from '../api/services';
 
 interface ModificationsPageProps {
@@ -17,8 +17,10 @@ type ModificationType =
   | 'SAISIE_CORRIGEE'
   | 'CORRECTION_VALIDEE'
   | 'OPERATIONNEL_AFFECTE'
+  | 'OPERATIONNEL_DESAFFECTE'
   | 'OPERATIONNEL_SUSPENDU'
-  | 'OPERATIONNEL_REACTIVE';
+  | 'OPERATIONNEL_REACTIVE'
+  | 'OPERATIONNEL_TRANSFERE_CHEF';
 
 // Données chargées depuis GET /api/dashboard/audit (plus de mock).
 // Le backend renvoie des objets déjà mappés vers ce contrat ({ auteur, roleAuteur, type, ... }).
@@ -27,12 +29,15 @@ interface RawModification {
   date: string;
   auteurId?: string | null;
   auteur: string;
+  auteurEmail?: string | null;
   roleAuteur: string;
+  chefOperationnel?: { id: string; nomComplet: string; matricule: string } | null;
   type: string;
   partenaireId?: string | null;
   partenaire?: string | null;
   entite?: string | null;
   detail?: string | null;
+  details?: Record<string, unknown>;
   statut: string;
 }
 
@@ -44,8 +49,10 @@ const labels: Record<string, string> = {
   SAISIE_CORRIGEE: 'Correction de saisie',
   CORRECTION_VALIDEE: 'Validation de correction',
   OPERATIONNEL_AFFECTE: 'Affectation opérationnel',
+  OPERATIONNEL_DESAFFECTE: 'Retrait d’affectation',
   OPERATIONNEL_SUSPENDU: 'Suspension opérationnel',
   OPERATIONNEL_REACTIVE: 'Réactivation opérationnel',
+  OPERATIONNEL_TRANSFERE_CHEF: 'Transfert vers un Chef',
 };
 
 const statusClasses: Record<string, string> = {
@@ -63,6 +70,7 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
   const [type, setType] = useState<'ALL' | ModificationType>('ALL');
   const [modifications, setModifications] = useState<RawModification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedModification, setSelectedModification] = useState<RawModification | null>(null);
 
   // Chargement réel depuis GET /api/dashboard/audit (plus de mock).
   useEffect(() => {
@@ -233,8 +241,8 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
 
               <tbody>
                 {filteredModifications.map((modification) => (
-                  <tr key={modification.id} className="border-b border-slate-100 last:border-0 hover:bg-sky-50/50">
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-600">
+                  <tr key={modification.id} className={`border-b last:border-0 ${isDark ? 'border-slate-700 hover:bg-slate-800/70' : 'border-slate-100 hover:bg-sky-50/50'}`}>
+                    <td className={`whitespace-nowrap px-4 py-3 font-mono text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                       {new Date(modification.date).toLocaleString('fr-FR', {
                         dateStyle: 'short',
                         timeStyle: 'short',
@@ -242,8 +250,8 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
                     </td>
 
                     <td className="px-4 py-3">
-                      <p className="font-bold text-slate-800">{modification.auteur}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{modification.roleAuteur}</p>
+                      <p className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{modification.auteur}</p>
+                      <p className={`mt-0.5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{modification.roleAuteur} / Chef : {modification.chefOperationnel?.nomComplet || 'Non applicable'}</p>
                     </td>
 
                     <td className="px-4 py-3">
@@ -252,11 +260,13 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-slate-600">{modification.partenaire || '—'}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-700">{modification.entite || '—'}</td>
+                    <td className={`px-4 py-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{modification.partenaire || '—'}</td>
+                    <td className={`px-4 py-3 font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{modification.entite || '—'}</td>
 
                     <td className="max-w-sm px-4 py-3">
-                      <p className="text-xs text-slate-600">{modification.detail || '—'}</p>
+                      <button type="button" onClick={() => setSelectedModification(modification)} className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+                        <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Voir le détail
+                      </button>
                     </td>
 
                     <td className="px-4 py-3">
@@ -278,9 +288,68 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
             </table>
           </div>
         </section>
+        {selectedModification && (
+          <ModificationDetailsModal modification={selectedModification} isDark={isDark} onClose={() => setSelectedModification(null)} />
+        )}
       </div>
     </div>
   );
 };
+
+const detailFieldLabels: Record<string, string> = {
+  date: 'Date concernée',
+  entity_type: 'Type d’entité',
+  entity_id: 'Identifiant de l’entité',
+  valeurs: 'Valeurs enregistrées',
+  avant: 'Affectations avant',
+  apres: 'Affectations après',
+  ajoutes: 'Partenaires ajoutés',
+  retires: 'Partenaires retirés',
+  partenaires: 'Partenaires concernés',
+  operationnel: 'Opérationnel concerné',
+  statut: 'Statut',
+};
+
+function displayDetailValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return 'Non renseigné';
+  if (Array.isArray(value)) {
+    return value.length ? value.map((item) => displayDetailValue(item)).join(' · ') : 'Aucun';
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${detailFieldLabels[key] || key}: ${displayDetailValue(item)}`)
+      .join(' | ');
+  }
+  return String(value);
+}
+
+const ModificationDetailsModal: React.FC<{ modification: RawModification; isDark: boolean; onClose: () => void }> = ({ modification, isDark, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    <section role="dialog" aria-modal="true" aria-labelledby="modification-detail-title" className={`max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border p-5 shadow-2xl ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-600">Historique d’activité</p>
+          <h2 id="modification-detail-title" className="mt-1 text-xl font-black">{labels[modification.type] || modification.type}</h2>
+          <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{new Date(modification.date).toLocaleString('fr-FR')}</p>
+        </div>
+        <button type="button" onClick={onClose} autoFocus className={`cursor-pointer rounded-lg p-2 ${isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`} aria-label="Fermer le détail"><X className="h-4 w-4" /></button>
+      </div>
+      <div className={`mt-5 rounded-xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800/70' : 'border-slate-200 bg-slate-50'}`}>
+        <p className="text-xs font-black uppercase tracking-wide">Action réalisée par</p>
+        <p className="mt-2 text-sm font-bold">{modification.auteur}</p>
+        <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{modification.roleAuteur} / Chef : {modification.chefOperationnel?.nomComplet || 'Non applicable'}{modification.auteurEmail ? ` · ${modification.auteurEmail}` : ''}</p>
+      </div>
+      <dl className="mt-5 space-y-3">
+        <div className={`rounded-xl border p-3 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}><dt className="text-[10px] font-black uppercase tracking-wide text-slate-400">Résumé</dt><dd className="mt-1 text-sm font-semibold">{modification.detail || 'Modification enregistrée'}</dd></div>
+        {Object.entries(modification.details || {}).map(([key, value]) => (
+          <div key={key} className={`rounded-xl border p-3 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+            <dt className="text-[10px] font-black uppercase tracking-wide text-slate-400">{detailFieldLabels[key] || key.replaceAll('_', ' ')}</dt>
+            <dd className={`mt-1 break-words text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{displayDetailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  </div>
+);
 
 export default ModificationsPage;

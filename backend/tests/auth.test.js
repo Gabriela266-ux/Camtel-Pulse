@@ -18,7 +18,7 @@ describe('Camtel Pulse backend', () => {
     const response = await request(app)
       .post('/api/auth/login')
       .send({
-        email: 'admin@camtel.local',
+        matricule: 'ADM-001',
         password: 'Admin123!'
       });
 
@@ -26,5 +26,10 @@ describe('Camtel Pulse backend', () => {
     expect(response.body.token).toBeDefined();
     expect(response.body.user.role).toBe('admin');
     expect(response.body.user.email).toBe('admin@camtel.local');
+
+    const emailLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ identifiant: 'admin@camtel.local', password: 'Admin123!' });
+    expect(emailLogin.status).toBe(401);
   });
 });

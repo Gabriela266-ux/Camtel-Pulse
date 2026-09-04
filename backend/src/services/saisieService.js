@@ -85,6 +85,7 @@ class SaisieService {
         const record = await this.buildRecord(payload);
 
         let vente;
+        let created = false;
         if (pos_id) {
             const existingSales = await db.VenteDsmAuPos.findAll({
                 where: { pos_id, date_vente: record.date },
@@ -100,6 +101,7 @@ class SaisieService {
                 });
                 for (const duplicate of existingSales.slice(1)) await duplicate.destroy();
             } else {
+                created = true;
                 vente = await db.VenteDsmAuPos.create({
                     dsm_id,
                     pos_id,
@@ -116,10 +118,11 @@ class SaisieService {
                 dsm_id: payload.entity_type === 'DSM' ? dsm_id : null,
                 date_achat: record.date
             };
-            const [achat] = await db.AchatJournaliere.findOrCreate({
+            const [achat, wasCreated] = await db.AchatJournaliere.findOrCreate({
                 where,
                 defaults: { ...where, utilisateur_id: payload.utilisateur_id || null, montant_achat: record.vente_jour }
             });
+            created = wasCreated;
             await achat.update({ utilisateur_id: payload.utilisateur_id || achat.utilisateur_id, montant_achat: record.vente_jour });
             vente = achat;
         }
@@ -140,10 +143,13 @@ class SaisieService {
                     quantite_credit: Number(payload.stock_journalier)
                 }
             });
-            await stockRow.update({ quantite_credit: Number(payload.stock_journalier) });
+            await stockRow.update({
+                utilisateur_id: payload.utilisateur_id || stockRow.utilisateur_id,
+                quantite_credit: Number(payload.stock_journalier),
+            });
         }
 
-        return vente;
+        return { vente, created };
     }
 
     async listByEntity(posId = null) {

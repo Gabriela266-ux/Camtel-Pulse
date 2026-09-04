@@ -1,6 +1,6 @@
 -- ============================================================================
 -- CAMTEL-PULSE — Script de création de la base de données
--- Suivi des objectifs commerciaux (Glotelho & Master Color) — Centre 1 CDPSM
+-- Suivi des objectifs commerciaux des partenaires CAMTEL — Centre 1 CDPSM
 -- ----------------------------------------------------------------------------
 -- SGBD : PostgreSQL
 -- Exécution : directement dans pgAdmin (Query Tool)
@@ -170,27 +170,11 @@ COMMENT ON TABLE config_generale IS
     'Paramètres globaux évolutifs (stock sécurité, jours/mois, tendance).';
 
 -- ============================================================================
--- 5. DONNÉES INITIALES (jeu de référence)
+-- 5. PARAMÈTRES TECHNIQUES INITIAUX
 -- ----------------------------------------------------------------------------
--- Insère le Centre 1 CDPSM et les deux clients Glotelho & Master Color.
--- Les DSM/POS seront ajoutés ultérieurement (renseignés par l'équipe).
+-- Aucun Centre, Partenaire, DSM, POS ou utilisateur factice n'est créé ici.
+-- Les entités métier sont saisies exclusivement depuis l'application.
 -- ============================================================================
-
--- Centre 1 CDPSM : racine de la hiérarchie (niveau 0)
-INSERT INTO entites (code_identifiant, type_entite, nom, parent_id)
-VALUES ('CTR-001', 'centre', 'Centre 1 CDPSM', NULL);
-
--- Client Glotelho (niveau 1) + objectif mensuel + Master SIM
-INSERT INTO entites (code_identifiant, type_entite, nom, parent_id, objectif_mensuel, master_sim)
-VALUES ('CLT-001', 'client', 'Glotelho',
-        (SELECT id FROM entites WHERE code_identifiant = 'CTR-001'),
-        3100000.00, 'SIM-GLO-0001');
-
--- Client Master Color (niveau 1) + objectif mensuel + Master SIM
-INSERT INTO entites (code_identifiant, type_entite, nom, parent_id, objectif_mensuel, master_sim)
-VALUES ('CLT-002', 'client', 'Master Color',
-        (SELECT id FROM entites WHERE code_identifiant = 'CTR-001'),
-        2500000.00, 'SIM-MCO-0002');
 
 -- Paramètres globaux par défaut
 INSERT INTO config_generale (cle, valeur, description) VALUES
@@ -267,5 +251,5 @@ COMMIT;
 -- Tables      : entites, saisies_journalieres, utilisateurs, config_generale
 -- Vues        : v_entites_avec_parent, v_suivi_journalier
 -- Fonctions   : set_updated_at (déclencheur)
--- Données init : Centre 1 CDPSM, Glotelho, Master Color, paramètres globaux
+-- Données init : paramètres techniques globaux uniquement
 -- ============================================================================

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AuthProvider } from './auth/AuthContext';
+import { AuthProvider } from './auth/AuthProvider';
 import { AppRoutes } from './routes/AppRoutes';
 
 export const App: React.FC = () => {

@@ -28,36 +28,39 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
   // Index date -> enregistrement pour un accès O(1) aux relevés journaliers réels.
   const recordsByDate = new Map(records.map((record) => [record.date, record]));
 
-  // Génère les `period` derniers jours ouvrés (date du jour incluse).
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // La période se termine sur le dernier relevé disponible. Une saisie historique reste
+  // ainsi visible, même si elle ne se trouve pas dans les 7 derniers jours calendaires.
+  const latestRecordDate = [...records]
+    .map((record) => record.date)
+    .sort((left, right) => left.localeCompare(right))
+    .at(-1);
+  const endDate = latestRecordDate
+    ? new Date(`${latestRecordDate}T00:00:00`)
+    : new Date();
+  endDate.setHours(0, 0, 0, 0);
   const lastDates: string[] = [];
   for (let i = period - 1; i >= 0; i -= 1) {
-    const day = new Date(today);
-    day.setDate(today.getDate() - i);
-    lastDates.push(day.toISOString().slice(0, 10));
+    const day = new Date(endDate);
+    day.setDate(endDate.getDate() - i);
+    const year = day.getFullYear();
+    const month = String(day.getMonth() + 1).padStart(2, '0');
+    const date = String(day.getDate()).padStart(2, '0');
+    lastDates.push(`${year}-${month}-${date}`);
   }
 
-  // Règle métier : sans stock journalier saisi pour le jour n, aucune consommation n'est
-  // calculable — la barre affiche 0 jusqu'à la saisie. Aucune valeur inventée n'est injectée.
-  const chartData = lastDates.map((date, index) => {
+  // La consommation est calculée et renvoyée par le backend avec la même règle que le
+  // tableau. Le graphique ne refait pas un calcul différent côté navigateur.
+  const chartData = lastDates.map((date) => {
     const record = recordsByDate.get(date);
-    const previous = recordsByDate.get(lastDates[index - 1]);
-
-    let consommation = 0;
-    if (record && record.stock_journalier != null) {
-      // Consommation (n) = Stock jour (n−1) + Réalisation jour (n−1) − Stock jour (n).
-      const previousStock = previous?.stock_journalier ?? 0; // jour n−1 absent → stock initial ou 0
-      const previousAchat = previous?.achat ?? 0; // Réalisation du jour n−1
-      consommation = Math.max(0, previousStock + previousAchat - record.stock_journalier);
-    }
 
     return {
-      date: date.split('-')[2],
-      consommation,
+      date: `${date.slice(8, 10)}/${date.slice(5, 7)}`,
+      consommation: record?.consommation ?? null,
       stockSecurite,
     };
   });
+
+  const hasKnownConsumption = chartData.some((item) => item.consommation !== null);
 
   // Achat cumulé réel sur la période sélectionnée (somme des achats enregistrés).
   const totalAchatPeriod = [...recordsByDate.values()]
@@ -84,7 +87,7 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
             Consommation — {period} derniers jours
           </h3>
           <p className="mt-1 text-xs text-slate-500">
-            Consommation = Stock j−1 + Achat j−1 − Stock j (données réelles des relevés)
+            Consommation = Stock j + Achat j − Stock j+1 (données calculées par le serveur)
           </p>
         </div>
 
@@ -110,7 +113,7 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
         </div>
       </div>
 
-      <div className="h-72 w-full">
+      <div className="relative h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="4 4" vertical={false} stroke={gridStroke} />
@@ -139,6 +142,11 @@ export const ConsumptionChart: React.FC<ConsumptionChartProps> = ({
             <Bar dataKey="stockSecurite" name="Stock de sécurité" fill="#f59e0b" radius={[6, 6, 0, 0]} opacity={0.35} />
           </BarChart>
         </ResponsiveContainer>
+        {!hasKnownConsumption && (
+          <div className={`pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+            La consommation nécessite le stock du jour suivant. Saisissez les stocks de deux jours consécutifs.
+          </div>
+        )}
       </div>
 
       <div className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-xs ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>

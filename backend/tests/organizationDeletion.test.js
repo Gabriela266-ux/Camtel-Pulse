@@ -30,7 +30,10 @@ describe('Partner deletion', () => {
 
       const login = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'admin@camtel.local', password: 'Admin123!' });
+        .send({ matricule: 'AGT-001', password: 'Admin123!' });
+
+      expect(login.status).toBe(200);
+      expect(login.body.user.role).toBe('chef_operationnel');
 
       const response = await request(app)
         .delete(`/api/organization/clients/${partner.id}`)

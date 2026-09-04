@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import { Menu, Moon, SunMedium } from 'lucide-react';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/useAuth';
 import AdminSidebar from '../components/Admin/AdminSidebar';
 import { UserManagementPanel } from '../components/Admin/UserManagementPanel';
-import { NetworkAdminPanel } from '../components/Admin/NetworkAdminPanel';
-import { ObjectivesPanel } from '../components/Admin/ObjectivesPanel';
 import { ImportsPanel } from '../components/Admin/ImportsPanel';
 import { AuditLogsPanel } from '../components/Admin/AuditLogsPanel';
 import { SnapshotsPanel } from '../components/dashboard/SnapshotsPanel';
@@ -17,7 +15,7 @@ interface AdminPageProps {
 
 export const AdminPage: React.FC<AdminPageProps> = ({ isDark, onToggleTheme }) => {
   const { user, logout } = useAuth();
-  const [selected, setSelected] = useState<'users' | 'network' | 'objectives' | 'imports' | 'audit' | 'snapshots'>('users');
+  const [selected, setSelected] = useState<'users' | 'imports' | 'audit' | 'snapshots'>('users');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const backgroundClass = isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800';
@@ -101,10 +99,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ isDark, onToggleTheme }) =
             <AccessRequestsPanel />
             <UserManagementPanel />
           </>}
-          {selected === 'network' && <NetworkAdminPanel />}
-          {selected === 'objectives' && <ObjectivesPanel />}
           {selected === 'imports' && <ImportsPanel />}
-          {selected === 'snapshots' && <SnapshotsPanel isDark={isDark} />}
+          {selected === 'snapshots' && <SnapshotsPanel isDark={isDark} allowDelete />}
           {selected === 'audit' && <AuditLogsPanel />}
         </main>
       </div>

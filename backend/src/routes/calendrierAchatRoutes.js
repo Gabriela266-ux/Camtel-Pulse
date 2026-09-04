@@ -1,18 +1,20 @@
 const express = require('express');
-const { authenticate } = require('../middlewares/authMiddleware');
+const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const calendrierAchatService = require('../services/calendrierAchatService');
+const { assertEntityAccess } = require('../utils/entityAccess');
 
 const router = express.Router();
 router.use(authenticate);
 
 // POST /api/calendrier-achat  { entity_type: 'DA'|'DSM'|'POS', entity_id, forecasts }
-router.post('/', async (req, res, next) => {
+router.post('/', authorize('chef_operationnel', 'operationnel'), async (req, res, next) => {
   try {
     const { entity_type, entity_id, forecasts } = req.body || {};
 
     if (!entity_type || !entity_id || !forecasts || typeof forecasts !== 'object') {
       return res.status(400).json({ ok: false, message: 'entity_type, entity_id et forecasts sont obligatoires' });
     }
+    await assertEntityAccess(req.user, entity_type, entity_id);
 
     const data = await calendrierAchatService.saveBulk({ entity_type, entity_id, forecasts, utilisateur_id: req.user.id });
     return res.status(201).json({
@@ -39,6 +41,7 @@ router.get('/', async (req, res, next) => {
     if (!entity_type || !entity_id || !year || !month) {
       return res.status(400).json({ ok: false, message: 'entity_type, entity_id, year et month sont obligatoires' });
     }
+    await assertEntityAccess(req.user, entity_type, entity_id);
 
     const data = await calendrierAchatService.getForMonth(entity_type, entity_id, Number(year), Number(month));
     return res.json({ ok: true, data });

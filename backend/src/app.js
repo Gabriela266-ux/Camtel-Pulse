@@ -21,6 +21,8 @@ const calendrierAchatRoutes = require('./routes/calendrierAchatRoutes');
 const previsionRoutes = require('./routes/previsionRoutes');
 const operationnelRoutes = require('./routes/operationnelRoutes');
 const snapshotRoutes = require('./routes/snapshotRoutes');
+const centreRoutes = require('./routes/centreRoutes');
+const superAdminRoutes = require('./routes/superAdminRoutes');
 
 dotenv.config();
 
@@ -57,7 +59,13 @@ function createApp() {
   // du centre de l'utilisateur connecté, reformatée pour la Sidebar.
   app.get('/api/hierarchie', authenticate, async (req, res, next) => {
     try {
-      const data = await organizationService.getFrontendHierarchy(req.user.centerId);
+      const requestedCenterId = req.user.role === 'super_admin' && req.query.centerId
+        ? String(req.query.centerId)
+        : req.user.centerId;
+      if (!requestedCenterId) {
+        return res.status(400).json({ ok: false, message: 'Sélectionnez un centre.' });
+      }
+      const data = await organizationService.getFrontendHierarchy(requestedCenterId);
       if (!data) return res.status(404).json({ ok: false, message: 'Centre introuvable' });
       res.json({ ok: true, data });
     } catch (error) {
@@ -66,6 +74,8 @@ function createApp() {
   });
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/centres', centreRoutes);
+  app.use('/api/super-admin', superAdminRoutes);
   app.use('/api/organization', organizationRoutes);
   app.use('/api/sales', salesRoutes);
   app.use('/api/business', businessRoutes);

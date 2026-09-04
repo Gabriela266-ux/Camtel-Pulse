@@ -2,16 +2,17 @@ const express = require('express');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const db = require('../models');
 const auditService = require('../services/auditService');
+const { assertEntityAccess, resolveCenterId } = require('../utils/entityAccess');
 
 const router = express.Router();
 
 router.use(authenticate);
 
 // Rôles autorisés à ENREGISTRER un tableau (le Manager est lecture seule).
-const CAN_SAVE = ['admin', 'chef_operationnel', 'operationnel'];
+const CAN_SAVE = ['chef_operationnel', 'operationnel'];
 // Rôles autorisés à CONSULTER / TÉLÉCHARGER les tableaux stockés.
-const CAN_VIEW = ['admin', 'manager', 'chef_operationnel'];
-const CAN_DELETE = ['admin', 'chef_operationnel'];
+const CAN_VIEW = ['super_admin', 'admin', 'manager', 'chef_operationnel'];
+const CAN_DELETE = ['chef_operationnel'];
 
 function computeTotals(records) {
     const sumStock = records.reduce((s, r) => s + Number(r.stock_journalier || 0), 0);
@@ -37,6 +38,7 @@ router.post('/', authorize(...CAN_SAVE), async(req, res, next) => {
         if (!body.entite_type || !body.entite_id) {
             return res.status(400).json({ ok: false, message: 'entite_type et entite_id sont obligatoires' });
         }
+        await assertEntityAccess(req.user, body.entite_type, body.entite_id);
 
         const periode = String(body.periode || new Date().toISOString().slice(0, 7));
         const totals = computeTotals(records);
@@ -74,7 +76,7 @@ router.post('/', authorize(...CAN_SAVE), async(req, res, next) => {
             action: 'snapshot_enregistre',
             entite: 'table_snapshot',
             entite_id: snapshot.id,
-            details: { entite_type: body.entite_type, entite_id: body.entite_id, periode, lignes: records.length }
+            details: { centre_id: req.user.centerId || null, entite_type: body.entite_type, entite_id: body.entite_id, periode, lignes: records.length }
         });
 
         return res.status(existing ? 200 : 201).json({
@@ -100,9 +102,16 @@ router.get('/', authorize(...CAN_VIEW), async(req, res, next) => {
                 ['created_at', 'DESC']
             ]
         });
+        const scopedSnapshots = [];
+        for (const snapshot of snapshots) {
+            const centerId = await resolveCenterId(snapshot.entite_type, snapshot.entite_id);
+            if (req.user.role === 'super_admin' || String(centerId || '') === String(req.user.centerId || '')) {
+                scopedSnapshots.push(snapshot);
+            }
+        }
         return res.json({
             ok: true,
-            data: snapshots.map((s) => ({
+            data: scopedSnapshots.map((s) => ({
                 id: s.id,
                 entite_type: s.entite_type,
                 entite_id: s.entite_id,
@@ -127,6 +136,7 @@ router.delete('/:id', authorize(...CAN_DELETE), async(req, res, next) => {
     try {
         const snapshot = await db.TableSnapshot.findByPk(req.params.id);
         if (!snapshot) return res.status(404).json({ ok: false, message: 'Tableau introuvable' });
+        await assertEntityAccess(req.user, snapshot.entite_type, snapshot.entite_id);
         await db.sequelize.transaction(async(transaction) => {
             await snapshot.destroy({ transaction });
         });
@@ -143,6 +153,7 @@ router.get('/:id/download', authorize(...CAN_VIEW), async(req, res, next) => {
         if (!snapshot) {
             return res.status(404).json({ ok: false, message: 'Tableau introuvable' });
         }
+        await assertEntityAccess(req.user, snapshot.entite_type, snapshot.entite_id);
 
         const records = JSON.parse(snapshot.payload || '[]');
         const headers = [
@@ -183,6 +194,7 @@ router.get('/:id/view', authorize(...CAN_VIEW), async(req, res, next) => {
             include: [{ model: db.Utilisateur, as: 'auteur', attributes: ['id', 'nom_complet'] }]
         });
         if (!snapshot) return res.status(404).json({ ok: false, message: 'Tableau introuvable' });
+        await assertEntityAccess(req.user, snapshot.entite_type, snapshot.entite_id);
 
         return res.json({
             ok: true,

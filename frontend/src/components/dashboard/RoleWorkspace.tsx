@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldCheck, UserCheck, UserCog, UserX } from 'lucide-react';
 import type { DANode, DailyRecord, OperationalAssignment, Operationnel } from '../../types';
-import type { User } from '../../auth/AuthContext';
+import type { User } from '../../auth/authState';
 
 interface RoleWorkspaceProps {
   role: string;
@@ -15,7 +15,7 @@ interface RoleWorkspaceProps {
 }
 
 function listScopes(assignments: OperationalAssignment[]): string {
-  const scopes = assignments.map((a) => a.partenaireNom).filter(Boolean);
+  const scopes = assignments.flatMap((assignment) => assignment.partenaires?.map((partner) => partner.nom) ?? []);
   return scopes.length > 0 ? [...new Set(scopes)].join(', ') : 'Aucun périmètre affecté';
 }
 
@@ -31,42 +31,28 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
 }) => {
   const totalPartners = partners.length;
   const totalOperationnels = operationnels.length;
-  const totalAssignments = assignments.length;
   const scopeLabel = listScopes(assignments);
 
-  const userPartner = user?.partenaireId
-    ? partners.find((p) => p.id === user.partenaireId)
-    : undefined;
+  const userPartnerIds = user?.partenaireIds?.length
+    ? user.partenaireIds
+    : user?.partenaireId ? [user.partenaireId] : [];
+  const userPartners = partners.filter((partner) => userPartnerIds.includes(partner.id));
 
   const isChef = role === 'CHEF_OPE';
 
-  if (role === 'ADMIN') {
+  if (role === 'ADMIN' || role === 'MANAGER') {
+    const isAdmin = role === 'ADMIN';
     return (
-      <Card role="ADMIN" label="Administrateur" title="Console d'administration">
-        <div className="grid gap-3 md:grid-cols-2">
-          <StatCard
-            label="Opérationnels"
-            value={String(totalOperationnels)}
-            hint={`${totalAssignments} affectation(s) enregistrée(s)`}
-          />
-          <StatCard
-            label="Partenaires"
-            value={String(totalPartners)}
-            hint="Partenaires & POS sous le DA"
-          />
-        </div>
-      </Card>
-    );
-  }
-
-  if (role === 'MANAGER') {
-    return (
-      <Card role="MANAGER" label="Manager" title="Vue de pilotage manager">
+      <Card
+        role={role}
+        label={isAdmin ? 'Administrateur' : 'Manager'}
+        title={isAdmin ? 'Vue de supervision administrateur' : 'Vue de pilotage manager'}
+      >
         <div className="grid gap-3 md:grid-cols-2">
           <StatCard
             label="Opérationnels suivis"
             value={String(totalOperationnels)}
-            hint="Lecture seule sur tous les indicateurs"
+            hint="Consultation de tous les indicateurs"
           />
           <StatCard
             label="Périmètres"
@@ -74,12 +60,28 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
             hint={scopeLabel}
           />
         </div>
+        {isAdmin && (
+          <p className="mt-3 text-xs font-medium text-slate-500">
+            Ce dashboard est en lecture seule. Les actions techniques restent disponibles dans l’espace Administration.
+          </p>
+        )}
+        {!isAdmin && (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead><tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:bg-slate-800"><th className="px-3 py-2.5">Opérationnel</th><th className="px-3 py-2.5">Rôle / Chef</th><th className="px-3 py-2.5">Périmètres</th><th className="px-3 py-2.5">Statut</th></tr></thead>
+              <tbody>{assignments.map((assignment) => <tr key={assignment.userId} className="border-t border-slate-100 dark:border-slate-700"><td className="px-3 py-3"><p className="font-black text-slate-800 dark:text-slate-100">{assignment.nomComplet?.trim() || assignment.email || 'Identité indisponible'}</p><p className="mt-0.5 text-[11px] text-slate-500">{assignment.email}</p></td><td className="px-3 py-3"><p className="font-bold text-sky-700 dark:text-sky-300">Opérationnel</p><p className="mt-0.5 text-[11px] text-slate-500">Chef / {assignment.chefOperationnel?.nomComplet || 'Non rattaché'}</p></td><td className="px-3 py-3 text-slate-600 dark:text-slate-300">{assignment.partenaires?.map((partner) => partner.nom).join(', ') || 'Aucun périmètre'}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 font-bold ${assignment.statut === 'suspendu' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{assignment.statut === 'suspendu' ? 'Suspendu' : 'Actif'}</span></td></tr>)}</tbody>
+            </table>
+            {assignments.length === 0 && <p className="px-4 py-8 text-center text-sm text-slate-500">Aucun opérationnel n’est encore rattaché aux équipes de ce centre.</p>}
+          </div>
+        )}
       </Card>
     );
   }
 
   if (isChef) {
-    const activeAssignments = assignments.filter((assignment) => assignment.statut !== 'suspendu' && assignment.statut !== 'inactif').length;
+    const activeAssignments = assignments
+      .filter((assignment) => assignment.statut !== 'suspendu' && assignment.statut !== 'inactif')
+      .reduce((sum, assignment) => sum + (assignment.partenaireIds?.length ?? 0), 0);
     const suspendedAssignments = assignments.filter((assignment) => assignment.statut === 'suspendu').length;
     return (
       <section id="gestion-operationnels" className="scroll-mt-6 rounded-2xl border border-slate-200 border-l-4 border-l-sky-600 bg-white p-5 shadow-sm">
@@ -105,13 +107,8 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
             </h3>
             <ul className="space-y-2">
               {assignments.map((assignment) => {
-                const partner =
-                  partners.find((p) => p.id === assignment.partenaireId) ?? null;
-                const scopeInfo = assignment.dsmId
-                  ? `DSM : ${partner?.dsm.find((d) => d.id === assignment.dsmId)?.nom ?? assignment.dsmId}`
-                  : `Périmètre : ${assignment.partenaireNom}`;
-
                 const isSuspended = assignment.statut === 'suspendu';
+                const assignedPartners = assignment.partenaires ?? [];
 
                 return (
                   <li
@@ -122,16 +119,24 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
                         : 'border-sky-200 bg-sky-50'
                     }`}
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span className={`text-sm font-bold ${isSuspended ? 'text-amber-800' : 'text-sky-900'}`}>
                         {assignment.nomComplet?.trim() || assignment.email || 'Opérationnel sans identité'}
                       </span>
-                      <span className="ml-2 text-xs text-slate-500">{scopeInfo}</span>
                       {isSuspended && (
                         <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
                           Suspendu
                         </span>
                       )}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {assignedPartners.length > 0 ? assignedPartners.map((partner) => (
+                          <span key={partner.id} className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[11px] font-bold text-sky-700 dark:border-sky-800 dark:bg-slate-900 dark:text-sky-300">
+                            {partner.nom}
+                          </span>
+                        )) : (
+                          <span className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[11px] font-semibold text-slate-500">Non affecté</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       {onReassign && (
@@ -140,7 +145,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
                           onClick={() => onReassign(assignment)}
                           className="rounded-lg border border-sky-300 bg-white px-2.5 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-50"
                         >
-                          Réaffecter
+                          Gérer les affectations
                         </button>
                       )}
                       {onToggleStatus && (
@@ -176,7 +181,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
   // OPERATIONNEL — périmètre affecté (partenaire de l'utilisateur connecté).
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayRecord = records.find((record) => record.date === todayStr);
-  const partnerName = userPartner?.nom ?? '—';
+  const partnerName = userPartners.length ? userPartners.map((partner) => partner.nom).join(', ') : 'Aucun partenaire affecté';
   const achatValue = todayRecord
     ? `${(todayRecord.achat ?? 0).toLocaleString('fr-FR')} U`
     : 'À saisir';
@@ -208,7 +213,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
           </p>
         </div>
         <span className="whitespace-nowrap text-xs text-slate-400">
-          Partenaire affecté - {partnerName}
+          {userPartners.length} partenaire(s) affecté(s)
         </span>
       </div>
 
@@ -217,9 +222,9 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
           <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Périmètre</div>
           <div className="mt-1 text-sm font-black text-slate-800">{partnerName}</div>
-          {userPartner ? (
+          {userPartners.length > 0 ? (
             <div className="mt-2 rounded-lg border border-sky-100 bg-sky-100 px-2.5 py-2 text-xs leading-snug text-sky-600">
-              Accès limité au partenaire affecté
+              Accès limité aux partenaires explicitement affectés
             </div>
           ) : (
             <div className="mt-0.5 text-xs text-slate-500">Saisie limitée au partenaire affecté</div>

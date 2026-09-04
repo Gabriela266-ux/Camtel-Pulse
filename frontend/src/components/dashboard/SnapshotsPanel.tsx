@@ -5,6 +5,7 @@ import { apiService } from '../../api/services';
 
 interface SnapshotsPanelProps {
   isDark?: boolean;
+  allowDelete?: boolean;
 }
 
 const typeLabels: Record<string, string> = {
@@ -16,7 +17,7 @@ const typeLabels: Record<string, string> = {
 
 // Liste des tableaux « Suivi journalier » enregistrés en base.
 // Consultation + téléchargement CSV uniquement — aucun snapshot n'est modifiable.
-export const SnapshotsPanel: React.FC<SnapshotsPanelProps> = ({ isDark = false }) => {
+export const SnapshotsPanel: React.FC<SnapshotsPanelProps> = ({ isDark = false, allowDelete = false }) => {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,16 +202,18 @@ export const SnapshotsPanel: React.FC<SnapshotsPanelProps> = ({ isDark = false }
                     <Download className={`h-4 w-4 ${downloadingId === snapshot.id ? 'animate-bounce' : ''}`} />
                     CSV
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(snapshot)}
-                    disabled={deletingId === snapshot.id}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Supprimer le tableau enregistré"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Supprimer
-                  </button>
+                  {allowDelete && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(snapshot)}
+                      disabled={deletingId === snapshot.id}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Supprimer le tableau enregistré"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Supprimer
+                    </button>
+                  )}
                   </div>
                 </td>
               </tr>

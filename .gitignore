@@ -1,0 +1,10 @@
+**/node_modules/
+**/dist/
+**/coverage/
+**/.env
+**/*.log
+backend/*.db
+backend/*.db-*
+backend/*.db.*
+database/*.db
+**/server.pid

@@ -3,13 +3,41 @@ const bcrypt = require('bcryptjs');
 const request = require('supertest');
 const { createApp } = require('../src/app');
 const db = require('../src/models');
+const { toCanonicalRole } = require('../src/utils/roles');
 
 async function loginAdmin(app) {
   const response = await request(app)
     .post('/api/auth/login')
-    .send({ email: 'admin@camtel.local', password: 'Admin123!' })
+    .send({ matricule: 'ADM-001', password: 'Admin123!' })
     .expect(200);
   return response.body.token;
+}
+
+async function getAdminAndChef() {
+  const admin = await db.Utilisateur.findOne({
+    where: { matricule: 'ADM-001' },
+  });
+  if (!admin) {
+    throw new Error('Le jeu de données de test doit contenir un Admin actif.');
+  }
+  const roles = await db.Role.findAll();
+  const chefRole = roles.find((role) => toCanonicalRole(role.libelle) === 'chef_operationnel');
+  if (!chefRole) {
+    throw new Error('Le rôle Chef opérationnel est absent du jeu de données de test.');
+  }
+  const chef = await db.Utilisateur.findOne({
+    where: {
+      centre_id: admin.centre_id,
+      role_id: chefRole.id,
+      statut: 'actif',
+    },
+  });
+
+  if (!chef) {
+    throw new Error('Le jeu de données de test doit contenir un Admin et un Chef opérationnel actifs.');
+  }
+
+  return { admin, chef };
 }
 
 describe('Administration des comptes utilisateurs', () => {
@@ -19,6 +47,7 @@ describe('Administration des comptes utilisateurs', () => {
     const suffix = randomUUID();
     const roles = await request(app).get('/api/accounts/roles').expect(200);
     const operationnel = roles.body.data.find((role) => role.libelle === 'Opérationnel');
+    const { chef } = await getAdminAndChef();
 
     let userId;
     try {
@@ -31,6 +60,7 @@ describe('Administration des comptes utilisateurs', () => {
           matricule: `ADM-${suffix}`,
           telephone: '600000000',
           role_id: operationnel.id,
+          chef_operationnel_id: chef.id,
         })
         .expect(201);
 
@@ -61,6 +91,7 @@ describe('Administration des comptes utilisateurs', () => {
     const suffix = randomUUID();
     const roles = await request(app).get('/api/accounts/roles').expect(200);
     const operationnel = roles.body.data.find((role) => role.libelle === 'Opérationnel');
+    const { admin, chef } = await getAdminAndChef();
 
     const submitted = await request(app)
       .post('/api/accounts/request')
@@ -70,6 +101,8 @@ describe('Administration des comptes utilisateurs', () => {
         matricule: `REQ-${suffix}`,
         telephone: '600000001',
         role_id: operationnel.id,
+        centre_id: admin.centre_id,
+        chef_operationnel_id: chef.id,
         dateDemande: '2026-08-27',
       })
       .expect(201);
@@ -101,6 +134,7 @@ describe('Administration des comptes utilisateurs', () => {
     const email = `password-reset-${suffix}@example.test`;
     const roles = await request(app).get('/api/accounts/roles').expect(200);
     const operationnel = roles.body.data.find((role) => role.libelle === 'Opérationnel');
+    const { chef } = await getAdminAndChef();
     let userId;
 
     try {
@@ -112,6 +146,7 @@ describe('Administration des comptes utilisateurs', () => {
           email,
           matricule: `RESET-${suffix}`,
           role_id: operationnel.id,
+          chef_operationnel_id: chef.id,
         })
         .expect(201);
       userId = created.body.data.id;
@@ -144,7 +179,9 @@ describe('Administration des comptes utilisateurs', () => {
       if (userId) {
         const admin = await db.Utilisateur.findByPk('11111111-1111-5111-8111-111111111111');
         if (await db.Utilisateur.findByPk(userId)) {
-          await require('../src/services/accountService').deleteUserByAdmin(userId, admin.id);
+          await require('../src/services/accountService').deleteUserByAdmin(userId, {
+            id: admin.id, role: 'admin', centerId: admin.centre_id,
+          });
         }
       }
     }

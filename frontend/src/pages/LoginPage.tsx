@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, KeyRound, Moon, SunMedium } from 'lucide-react';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/useAuth';
 import { apiService } from '../api/services';
+import { PlatformLogo } from '../components/common/PlatformLogo';
 
 interface LoginPageProps {
   isDark: boolean;
@@ -13,12 +14,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
   const { login } = useAuth();
   const navigate = useNavigate();
 
-    const [identifiant, setIdentifiant] = useState('chef@camtel.local');
+  const [identifiant, setIdentifiant] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [_actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +29,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
     try {
             const { token, user } = await apiService.login(identifiant, password);
       login(token, user);
-      navigate(user.mustChangePassword ? '/change-password' : '/dashboard');
+      navigate(user.mustChangePassword ? '/change-password' : user.role === 'SUPER_ADMIN' ? '/super-admin' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connexion impossible');
     } finally {
@@ -38,6 +39,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
 
   const handlePasswordReset = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!identifiant.trim()) {
+      setError('Saisissez d’abord votre matricule.');
+      return;
+    }
     setActionLoading(true);
     setActionMessage(null);
     setError(null);
@@ -76,25 +81,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
         </button>
       </div>
 
-      <div className={`w-full max-w-md rounded-3xl border p-8 shadow-xl shadow-slate-200/30 ${cardClass}`}>
-        <div className="mb-5 flex items-center gap-3">
-          <img src="/logo-camtel.png" alt="CAMTEL" className="h-14 w-14 rounded-xl object-contain" />
-          <div className="text-xs font-black tracking-[0.2em] text-sky-600">BLUE FINANCIAL PULSE</div>
+      <div className={`w-full max-w-md rounded-3xl border p-6 shadow-xl shadow-slate-200/30 sm:p-8 ${cardClass}`}>
+        <div className="mb-5 flex justify-center">
+          <PlatformLogo size="auth" />
         </div>
-        <h2 className={`mb-6 text-2xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+        <h1 className={`mb-6 text-center text-2xl font-black ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
           Connexion Plateforme
-        </h2>
+        </h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
                         <label className={`mb-1 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Identifiant / Email
+              Matricule
             </label>
             <input
               type="text"
               value={identifiant}
               onChange={(e) => setIdentifiant(e.target.value)}
               className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 ${inputClass}`}
+              autoComplete="username"
+              placeholder="Ex : AGT-001"
               required
             />
           </div>
@@ -108,6 +114,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 ${inputClass}`}
+              autoComplete="current-password"
               required
             />
           </div>
@@ -131,8 +138,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
           <button type="button" onClick={() => { window.location.assign('/'); }} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-sky-600">
             <ArrowLeft className="h-3.5 w-3.5" /> Retour à l'accueil
           </button>
-          <button type="button" onClick={handlePasswordReset} className="inline-flex items-center gap-1.5 text-sky-600 hover:text-sky-700">
-            <KeyRound className="h-3.5 w-3.5" /> Mot de passe oublié ?
+          <button type="button" onClick={handlePasswordReset} disabled={actionLoading} className="inline-flex cursor-pointer items-center gap-1.5 text-sky-600 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <KeyRound className="h-3.5 w-3.5" /> {actionLoading ? 'Envoi…' : 'Mot de passe oublié ?'}
           </button>
         </div>
 

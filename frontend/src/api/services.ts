@@ -1,7 +1,13 @@
 import type { CalendarEntity, DAHierarchy, DashboardData, EntityType } from '../types';
-import type { AddPartnerPayload, OperationalAssignment, Operationnel } from '../types';
+import type {
+  AddPartnerPayload,
+  CreateDsmPayload,
+  CreatePosPayload,
+  OperationalAssignment,
+  Operationnel,
+} from '../types';
 import type { DailyRecord } from '../types';
-import type { User } from '../auth/AuthContext';
+import type { User } from '../auth/authState';
 
 const API_TIMEOUT = 30000;
 const TOKEN_KEY = 'cp_token';
@@ -39,14 +45,28 @@ function normalizeHierarchy(value: Partial<DAHierarchy> | null | undefined): DAH
       ...da,
       id: String(da.id),
       nom: String(da.nom || ''),
+      code: da.code ? String(da.code) : undefined,
+      region: da.region ? String(da.region) : undefined,
+      numero_sim: da.numero_sim ? String(da.numero_sim) : undefined,
+      code_zone: da.code_zone ? String(da.code_zone) : undefined,
+      nom_reseau: da.nom_reseau ? String(da.nom_reseau) : undefined,
       dsm: (Array.isArray(da.dsm) ? da.dsm : []).map((dsm) => ({
         ...dsm,
         id: String(dsm.id),
         nom: String(dsm.nom || ''),
+        numero_telephone: dsm.numero_telephone ? String(dsm.numero_telephone) : undefined,
+        code_dsm: dsm.code_dsm ? String(dsm.code_dsm) : undefined,
+        code_zone: dsm.code_zone ? String(dsm.code_zone) : undefined,
+        nom_reseau: dsm.nom_reseau ? String(dsm.nom_reseau) : undefined,
         pos: (Array.isArray(dsm.pos) ? dsm.pos : []).map((pos) => ({
           ...pos,
           id: String(pos.id),
           nom: String(pos.nom || ''),
+          numero_telephone: pos.numero_telephone ? String(pos.numero_telephone) : undefined,
+          code_pos: pos.code_pos ? String(pos.code_pos) : undefined,
+          code_dsm: pos.code_dsm ? String(pos.code_dsm) : undefined,
+          code_zone: pos.code_zone ? String(pos.code_zone) : undefined,
+          nom_reseau: pos.nom_reseau ? String(pos.nom_reseau) : undefined,
         })),
       })),
     })),
@@ -120,19 +140,89 @@ export interface AccountDecisionResult {
   id?: string;
   nom_complet?: string;
   email?: string;
+  matricule?: string;
   temporaryPassword?: string;
   emailNotification?: { sent?: boolean };
   message?: string;
 }
 
+export interface AdminAccountPayload {
+  nom_complet: string;
+  email: string;
+  matricule: string;
+  telephone?: string;
+  role_id: string;
+  chef_operationnel_id?: string;
+}
+
 export interface AccessRequestPayload {
   name: string;
-  poste: string;
-  poste_id?: string;
+  role_id: string;
   matricule: string;
   email: string;
   telephone: string;
   dateDemande: string;
+  centre_id: string;
+  chef_operationnel_id?: string;
+}
+
+export interface RequestRole {
+  id: string;
+  libelle: string;
+}
+
+export interface PublicCentre {
+  id: string;
+  code_centre: string;
+  nom_centre: string;
+  region: string;
+}
+
+export interface PublicChefOperationnel {
+  id: string;
+  nom_complet: string;
+  matricule: string;
+}
+
+export interface CentreRecord extends PublicCentre {
+  telephone: string | null;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  counts: { users: number; partners: number; dsms: number; pos: number };
+}
+
+export interface SuperAdminOverview {
+  activeCentres: number;
+  admins: number;
+  users: number;
+  pendingRequests: number;
+  suspendedAccounts: number;
+}
+
+export interface AdminRecord {
+  id: string;
+  nom_complet: string;
+  email: string;
+  matricule: string;
+  telephone?: string | null;
+  statut: string;
+  centre_id: string;
+  centre?: PublicCentre;
+}
+
+export interface CreateCentrePayload {
+  nom_centre: string;
+  region: string;
+  telephone: string;
+}
+
+export interface CreateCentreAdminPayload {
+  nom_complet: string;
+  matricule: string;
+  email: string;
+  telephone: string;
+  centre_id: string;
 }
 
 export interface Poste {
@@ -146,19 +236,22 @@ export interface Poste {
 // -> rôles frontend (les 4 rôles fixés par l'encadreur).
 function mapBackendRole(role: string): User['role'] {
   const map: Record<string, User['role']> = {
+    super_admin: 'SUPER_ADMIN',
     admin: 'ADMIN',
     chef_operationnel: 'CHEF_OPE',
     manager: 'MANAGER',
     operationnel: 'OPERATIONNEL',
   };
-  return map[role] || 'OPERATIONNEL';
+  const mapped = map[role];
+  if (!mapped) throw new Error(`Rôle non reconnu par l'application : ${role}`);
+  return mapped;
 }
 
 export const apiService = {
     async login(identifiant: string, password: string): Promise<LoginResult> {
     const raw = await request<{ token: string; user: any }>(
       '/auth/login',
-            { method: 'POST', body: JSON.stringify({ identifiant, password }) },
+            { method: 'POST', body: JSON.stringify({ matricule: identifiant, password }) },
       false,
     );
 
@@ -169,8 +262,25 @@ export const apiService = {
         nom_complet: raw.user.name,
         email: raw.user.email,
         role: mapBackendRole(raw.user.role),
+        partenaireIds: Array.isArray(raw.user.partenaire_ids)
+          ? raw.user.partenaire_ids.map(String)
+          : raw.user.da_id ? [String(raw.user.da_id)] : [],
+        partenaires: Array.isArray(raw.user.partenaires)
+          ? raw.user.partenaires.map((partner: any) => ({
+              id: String(partner.id),
+              nom: String(partner.nom || ''),
+              code: partner.code ? String(partner.code) : undefined,
+            }))
+          : [],
         partenaireId: raw.user.da_id ? String(raw.user.da_id) : undefined,
         mustChangePassword: Boolean(raw.user.must_change_password),
+        centerId: raw.user.centerId ? String(raw.user.centerId) : null,
+        centre: raw.user.centre || null,
+        chefOperationnel: raw.user.chef_operationnel ? {
+          id: String(raw.user.chef_operationnel.id),
+          nomComplet: String(raw.user.chef_operationnel.nom_complet || ''),
+          matricule: String(raw.user.chef_operationnel.matricule || ''),
+        } : null,
       },
     };
   },
@@ -182,23 +292,66 @@ export const apiService = {
     }, false);
   },
 
+  async getRequestRoles(): Promise<RequestRole[]> {
+    return request<RequestRole[]>('/accounts/request-roles', { method: 'GET' }, false);
+  },
+
+  async getPublicCentres(): Promise<PublicCentre[]> {
+    return request<PublicCentre[]>('/centres/public', { method: 'GET' }, false);
+  },
+
+  async getPublicChefs(centreId: string): Promise<PublicChefOperationnel[]> {
+    return request<PublicChefOperationnel[]>(
+      `/centres/public/${encodeURIComponent(centreId)}/chefs-operationnels`,
+      { method: 'GET' },
+      false,
+    );
+  },
+
+  async getSuperAdminOverview(): Promise<SuperAdminOverview> {
+    return request<SuperAdminOverview>('/super-admin/overview');
+  },
+
+  async getSuperAdminCentres(): Promise<CentreRecord[]> {
+    return request<CentreRecord[]>('/super-admin/centres');
+  },
+
+  async createCentre(payload: CreateCentrePayload): Promise<CentreRecord> {
+    return request<CentreRecord>('/super-admin/centres', { method: 'POST', body: JSON.stringify(payload) });
+  },
+
+  async updateCentre(id: string, payload: Partial<CreateCentrePayload>): Promise<CentreRecord> {
+    return request<CentreRecord>(`/super-admin/centres/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  },
+
+  async setCentreStatus(id: string, active: boolean): Promise<CentreRecord> {
+    return request<CentreRecord>(`/super-admin/centres/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ active }) });
+  },
+
+  async getSuperAdminAdmins(): Promise<AdminRecord[]> {
+    return request<AdminRecord[]>('/super-admin/admins');
+  },
+
+  async createCentreAdmin(payload: CreateCentreAdminPayload): Promise<AccountDecisionResult> {
+    return request<AccountDecisionResult>('/super-admin/admins', { method: 'POST', body: JSON.stringify(payload) });
+  },
+
+  async setAdminStatus(id: string, statut: 'actif' | 'suspendu'): Promise<AdminRecord> {
+    return request<AdminRecord>(`/super-admin/admins/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ statut }) });
+  },
+
+  async resetCentreAdminPassword(id: string): Promise<AccountDecisionResult> {
+    return request<AccountDecisionResult>(`/super-admin/admins/${encodeURIComponent(id)}/reset-password`, { method: 'PATCH' });
+  },
+
   async getPostes(): Promise<Poste[]> {
     return request<Poste[]>('/accounts/postes', { method: 'GET' }, false);
   },
 
-  // Pré-remplit le formulaire depuis les informations déjà enregistrées (base).
-  async lookupRequestUser(query: { matricule?: string; email?: string }): Promise<any> {
-    const params = new URLSearchParams();
-    if (query.matricule) params.set('matricule', query.matricule);
-    if (query.email) params.set('email', query.email);
-    const queryString = params.toString();
-    return request<any>(`/accounts/lookup${queryString ? `?${queryString}` : ''}`, { method: 'GET' }, false);
-  },
-
-  async requestPasswordReset(email: string): Promise<{ message: string }> {
+  async requestPasswordReset(matricule: string): Promise<{ message: string }> {
     return request<{ message: string }>('/accounts/password-reset', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ identifiant: matricule }),
     }, false);
   },
 
@@ -215,6 +368,25 @@ export const apiService = {
 
   async getAccounts(): Promise<any[]> {
     return request<any[]>('/accounts/users');
+  },
+
+  async createAdminAccount(payload: AdminAccountPayload): Promise<AccountDecisionResult> {
+    return request<AccountDecisionResult>('/accounts/users', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteAdminAccount(userId: string): Promise<{ id: string; deleted: boolean }> {
+    return request<{ id: string; deleted: boolean }>(`/accounts/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async resetAdminPassword(userId: string): Promise<AccountDecisionResult> {
+    return request<AccountDecisionResult>(`/accounts/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: 'PATCH',
+    });
   },
 
   async approveAccount(id: string): Promise<AccountDecisionResult> {
@@ -288,7 +460,7 @@ export const apiService = {
     );
   },
 
-  // --- Opérationnels & affectations (à implémenter côté backend) ---
+  // --- Opérationnels & affectations réelles ---
   async getOperationnels(): Promise<Operationnel[]> {
     return request<Operationnel[]>('/operationnels');
   },
@@ -304,10 +476,10 @@ export const apiService = {
     });
   },
 
-  // « Changer poste » (opérationnel <-> partenaire / DSM / POS) : persiste via le backend.
+  // Affectation explicite de plusieurs partenaires à un opérationnel.
   async changerAffectation(
     userId: string,
-    payload: { partenaireId: string; dsmId: string | null; posId: string | null },
+    payload: { partenaireIds: string[] },
   ): Promise<OperationalAssignment> {
     return request<OperationalAssignment>(`/affectations/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
@@ -319,6 +491,13 @@ export const apiService = {
     return request<OperationalAssignment>(`/operationnels/${encodeURIComponent(userId)}/statut`, {
       method: 'PATCH',
       body: JSON.stringify({ statut }),
+    });
+  },
+
+  async transferOperationnelToChef(userId: string, chefOperationnelId: string): Promise<OperationalAssignment> {
+    return request<OperationalAssignment>(`/operationnels/${encodeURIComponent(userId)}/chef`, {
+      method: 'PATCH',
+      body: JSON.stringify({ chef_operationnel_id: chefOperationnelId }),
     });
   },
 
@@ -373,9 +552,9 @@ export const apiService = {
     });
   },
 
-  async createDsm(daId: string, nom: string): Promise<void> {
+  async createDsm(payload: CreateDsmPayload): Promise<void> {
     await request('/organization/dsms', {
-      method: 'POST', body: JSON.stringify({ da_id: daId, nom }),
+      method: 'POST', body: JSON.stringify(payload),
     });
   },
 
@@ -385,9 +564,9 @@ export const apiService = {
     });
   },
 
-  async createPos(dsmId: string, nom: string): Promise<void> {
+  async createPos(payload: CreatePosPayload): Promise<void> {
     await request('/organization/pos', {
-      method: 'POST', body: JSON.stringify({ dsm_id: dsmId, nom }),
+      method: 'POST', body: JSON.stringify(payload),
     });
   },
 

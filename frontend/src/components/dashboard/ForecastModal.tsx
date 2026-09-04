@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { CalendarEntity, DAHierarchy, EntityType } from '../../types';
 
 interface ForecastModalProps {
@@ -39,10 +39,16 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
   onLoadExisting,
   isDark = false,
 }) => {
-  const entities = listEntities(hierarchyData, defaultEntityType, defaultEntityId);
+  const entities = useMemo(
+    () => listEntities(hierarchyData, defaultEntityType, defaultEntityId),
+    [hierarchyData, defaultEntityType, defaultEntityId],
+  );
   const defaultKey = defaultEntityType && defaultEntityId ? `${defaultEntityType}:${defaultEntityId}` : '';
   const [entityKey, setEntityKey] = useState<string>(defaultKey || (entities[0] ? `${entities[0].type}:${entities[0].id}` : ''));
-  const selectedEntity = entities.find((entity) => `${entity.type}:${entity.id}` === entityKey);
+  const selectedEntity = useMemo(
+    () => entities.find((entity) => `${entity.type}:${entity.id}` === entityKey),
+    [entities, entityKey],
+  );
   const today = new Date();
   const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
@@ -80,7 +86,7 @@ export const ForecastModal: React.FC<ForecastModalProps> = ({
     };
 
     load();
-  }, [selectedYear, selectedMonth, entityKey]);
+  }, [selectedYear, selectedMonth, selectedEntity, onLoadExisting]);
 
   if (!isOpen) return null;
 

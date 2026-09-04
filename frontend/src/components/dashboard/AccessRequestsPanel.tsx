@@ -14,6 +14,10 @@ interface AccessRequest {
   motif_refus?: string;
   poste?: { libelle?: string; role?: { libelle?: string } };
   role?: { libelle?: string };
+  centre?: { id: string; code_centre?: string; nom_centre?: string; region?: string };
+  centre_id?: string;
+  chefOperationnel?: { id: string; nom_complet: string; matricule: string } | null;
+  created_at?: string;
 }
 
 export const AccessRequestsPanel: React.FC = () => {
@@ -25,6 +29,9 @@ export const AccessRequestsPanel: React.FC = () => {
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [motif, setMotif] = useState('');
   const [filter, setFilter] = useState<'EN_ATTENTE' | 'APPROUVEE' | 'REFUSEE' | 'TOUTES'>('EN_ATTENTE');
+  const [centreFilter, setCentreFilter] = useState('TOUS');
+  const [roleFilter, setRoleFilter] = useState('TOUS');
+  const [fromDate, setFromDate] = useState('');
   const [credentials, setCredentials] = useState<TemporaryCredentials | null>(null);
 
   const loadRequests = async () => {
@@ -46,7 +53,7 @@ export const AccessRequestsPanel: React.FC = () => {
     setMessage('');
     try {
       const result = await apiService.approveAccount(request.id);
-      if (result.temporaryPassword) setCredentials({ name: result.nom_complet || request.nom_complet, email: result.email || request.email, password: result.temporaryPassword });
+      if (result.temporaryPassword) setCredentials({ name: result.nom_complet || request.nom_complet, email: result.email || request.email, matricule: result.matricule || request.matricule, password: result.temporaryPassword });
       await loadRequests();
       setMessage(result?.message || 'Demande validée. Le compte peut maintenant se connecter.');
     } catch (error) {
@@ -95,7 +102,15 @@ export const AccessRequestsPanel: React.FC = () => {
     return <span className={`rounded-full px-2 py-0.5 font-bold ${styles[statut] || 'bg-slate-100 text-slate-600'}`}>{statut}</span>;
   };
 
-  const visibleRequests = requests.filter((request) => filter === 'TOUTES' || request.statut === filter);
+  const visibleRequests = requests.filter((request) => {
+    const matchesStatus = filter === 'TOUTES' || request.statut === filter;
+    const matchesCentre = centreFilter === 'TOUS' || request.centre_id === centreFilter;
+    const matchesRole = roleFilter === 'TOUS' || request.role?.libelle === roleFilter;
+    const matchesDate = !fromDate || !request.created_at || request.created_at.slice(0, 10) >= fromDate;
+    return matchesStatus && matchesCentre && matchesRole && matchesDate;
+  });
+  const centreOptions = Array.from(new Map(requests.filter((request) => request.centre).map((request) => [request.centre_id, request.centre!])).entries());
+  const roleOptions = [...new Set(requests.map((request) => request.role?.libelle).filter((role): role is string => Boolean(role)))];
   const counts = {
     EN_ATTENTE: requests.filter((r) => r.statut === 'EN_ATTENTE').length,
     APPROUVEE: requests.filter((r) => r.statut === 'APPROUVEE').length,
@@ -104,10 +119,15 @@ export const AccessRequestsPanel: React.FC = () => {
   };
 
   return (
-    <section className="rounded-2xl border border-sky-200 border-l-4 border-l-sky-600 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-sky-200 border-l-4 border-l-sky-600 bg-white p-5 shadow-sm dark:border-sky-900 dark:border-l-sky-500 dark:bg-slate-900">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><p className="text-xs font-black uppercase tracking-wide text-sky-700">Validation</p><h2 className="mt-1 text-xl font-black text-slate-900">Demandes d’accès</h2></div>
-        <button type="button" onClick={loadRequests} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50" title="Actualiser les demandes"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualiser</button>
+        <div><p className="text-xs font-black uppercase tracking-wide text-sky-700 dark:text-sky-300">Validation</p><h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">Demandes d’accès</h2></div>
+        <button type="button" onClick={loadRequests} disabled={loading} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" title="Actualiser les demandes"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualiser</button>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Centre<select value={centreFilter} onChange={(event) => setCentreFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="TOUS">Tous les centres</option>{centreOptions.map(([id, centre]) => <option key={id} value={id}>{centre.code_centre} — {centre.nom_centre}</option>)}</select></label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Rôle<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="TOUS">Tous les rôles</option>{roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Depuis le<input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-950" /></label>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {(['EN_ATTENTE', 'APPROUVEE', 'REFUSEE', 'TOUTES'] as const).map((key) => (
@@ -125,15 +145,16 @@ export const AccessRequestsPanel: React.FC = () => {
       {loading ? <p className="mt-5 text-sm text-slate-500">Chargement des demandes...</p> : visibleRequests.length === 0 ? <p className="mt-5 text-sm text-slate-500">Aucune demande dans cette catégorie.</p> : (
         <div className="mt-5 space-y-3">
           {visibleRequests.map((request) => (
-            <article key={request.id} className={`rounded-xl border p-4 ${request.statut === 'EN_ATTENTE' ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white opacity-90'}`}>
+            <article key={request.id} className={`rounded-xl border p-4 dark:border-slate-700 ${request.statut === 'EN_ATTENTE' ? 'border-slate-200 bg-slate-50 dark:bg-slate-950' : 'border-slate-200 bg-white opacity-90 dark:bg-slate-900'}`}>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 truncate text-sm font-black text-slate-900">{request.nom_complet} {statusBadge(request.statut)}</p>
+                  <p className="flex items-center gap-2 truncate text-sm font-black text-slate-900 dark:text-white">{request.nom_complet} {statusBadge(request.statut)}</p>
                   <p className="mt-1 truncate text-xs text-slate-600">{request.email} · {request.telephone || 'Téléphone non fourni'}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700">Poste : {request.poste?.libelle || '—'}</span>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Rôle auto : {request.role?.libelle || request.poste?.role?.libelle || '—'}</span>
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700">Rôle demandé : {request.role?.libelle || request.poste?.role?.libelle || '—'}</span>
                     <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{request.matricule || 'Matricule ?'}</span>
+                    {request.centre && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-bold text-violet-700 dark:bg-violet-950 dark:text-violet-300">{request.centre.code_centre} — {request.centre.nom_centre}</span>}
+                    {request.chefOperationnel && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Chef : {request.chefOperationnel.nom_complet}</span>}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -152,8 +173,8 @@ export const AccessRequestsPanel: React.FC = () => {
                   <p><span className="font-bold text-slate-500">Matricule :</span> <span className="text-slate-800">{request.matricule || '—'}</span></p>
                   <p><span className="font-bold text-slate-500">Email :</span> <span className="text-slate-800">{request.email}</span></p>
                   <p><span className="font-bold text-slate-500">Téléphone :</span> <span className="text-slate-800">{request.telephone || '—'}</span></p>
-                  <p><span className="font-bold text-slate-500">Poste choisi :</span> <span className="text-slate-800">{request.poste?.libelle || '—'}</span></p>
-                  <p><span className="font-bold text-slate-500">Rôle automatiquement déterminé :</span> <span className="text-slate-800">{request.role?.libelle || request.poste?.role?.libelle || '—'}</span></p>
+                  <p><span className="font-bold text-slate-500">Rôle demandé :</span> <span className="text-slate-800">{request.role?.libelle || request.poste?.role?.libelle || '—'}</span></p>
+                  <p><span className="font-bold text-slate-500">Chef souhaité :</span> <span className="text-slate-800">{request.chefOperationnel?.nom_complet || 'Non applicable'}</span></p>
                   <p className="sm:col-span-2"><span className="font-bold text-slate-500">Statut :</span> {statusBadge(request.statut)}</p>
                   {request.statut === 'REFUSEE' && request.motif_refus && <p className="sm:col-span-2"><span className="font-bold text-slate-500">Motif du refus :</span> <span className="text-rose-700">{request.motif_refus}</span></p>}
                 </div>

@@ -141,6 +141,17 @@ async function getDailySeries(type, id, posIds, startDate, endDate) {
         stockScopes.push({ da_id: null, dsm_id: id, pos_id: null });
     }
 
+    const authorInclude = [{
+        model: db.Utilisateur,
+        as: 'saisi_par',
+        attributes: ['id', 'nom_complet', 'email'],
+        include: [
+            { model: db.Role, as: 'role', attributes: ['libelle'] },
+            { model: db.Utilisateur, as: 'chefOperationnel', attributes: ['id', 'nom_complet', 'matricule'], required: false },
+        ],
+        required: false,
+    }];
+
     const [ventes, directPurchases, stocks, calendrier] = await Promise.all([
         posIds.length ? db.VenteDsmAuPos.findAll({
             where: {
@@ -148,13 +159,15 @@ async function getDailySeries(type, id, posIds, startDate, endDate) {
                 date_vente: {
                     [db.Sequelize.Op.between]: [startDate, endDate]
                 }
-            }
+            },
+            include: authorInclude,
         }) : [],
         directPurchaseScopes.length ? db.AchatJournaliere.findAll({
             where: {
                 [db.Sequelize.Op.or]: directPurchaseScopes,
                 date_achat: { [db.Sequelize.Op.between]: [startDate, endDate] }
-            }
+            },
+            include: authorInclude,
         }) : [],
         stockScopes.length ? db.Stock.findAll({
             where: {
@@ -162,7 +175,8 @@ async function getDailySeries(type, id, posIds, startDate, endDate) {
                 date_stock: {
                     [db.Sequelize.Op.between]: [startDate, endDate]
                 }
-            }
+            },
+            include: authorInclude,
         }) : [],
         db.CalendrierAchat.findAll({
             where: {
@@ -175,15 +189,56 @@ async function getDailySeries(type, id, posIds, startDate, endDate) {
     ]);
 
     const achatByDate = {};
+    const traceByDate = {};
+    const normalizeAuthorRole = (role) => {
+        const normalized = String(role || '').toLowerCase().replace(/\s+/g, '_');
+        const labels = {
+            admin: 'ADMIN',
+            manager: 'MANAGER',
+            chef_operationnel: 'CHEF_OPE',
+            operationnel: 'OPERATIONNEL',
+        };
+        return labels[normalized] || normalized.toUpperCase() || 'INCONNU';
+    };
+    const addTrace = (date, row, source, valeur) => {
+        if (!date) return;
+        if (!traceByDate[date]) traceByDate[date] = { auteurs: new Map(), lignes: [] };
+        const user = row.saisi_par;
+        if (user) {
+            traceByDate[date].auteurs.set(String(user.id), {
+                id: String(user.id),
+                nomComplet: user.nom_complet,
+                email: user.email,
+                role: normalizeAuthorRole(user.role && user.role.libelle),
+                chefOperationnel: user.chefOperationnel ? {
+                    id: String(user.chefOperationnel.id),
+                    nomComplet: user.chefOperationnel.nom_complet,
+                    matricule: user.chefOperationnel.matricule,
+                } : null,
+            });
+        }
+        traceByDate[date].lignes.push({
+            id: String(row.id),
+            source,
+            valeur: round2(valeur),
+            saisiLe: row.updated_at || row.updatedAt || row.created_at || row.createdAt || null,
+            auteurId: user ? String(user.id) : null,
+            daId: row.da_id ? String(row.da_id) : null,
+            dsmId: row.dsm_id ? String(row.dsm_id) : null,
+            posId: row.pos_id ? String(row.pos_id) : null,
+        });
+    };
     ventes.forEach((v) => {
         const date = normalizeDate(v.date_vente);
         if (!date) return;
         achatByDate[date] = (achatByDate[date] || 0) + Number(v.montant || 0);
+        addTrace(date, v, 'ACHAT', Number(v.montant || 0));
     });
     directPurchases.forEach((purchase) => {
         const date = normalizeDate(purchase.date_achat);
         if (!date) return;
         achatByDate[date] = (achatByDate[date] || 0) + Number(purchase.montant_achat || 0);
+        addTrace(date, purchase, 'ACHAT', Number(purchase.montant_achat || 0));
     });
 
     // Somme du "Stock journalier (U)" saisi par les opérationnels de tous les POS
@@ -194,6 +249,7 @@ async function getDailySeries(type, id, posIds, startDate, endDate) {
         const date = normalizeDate(s.date_stock);
         if (!date) return;
         stockByDate[date] = (stockByDate[date] || 0) + Number(s.quantite_credit || 0);
+        addTrace(date, s, 'STOCK', Number(s.quantite_credit || 0));
     });
 
     // Calendrier d'Achat = jargon Camtel pour "prévisions" (table calendrier_achat).
@@ -204,7 +260,15 @@ async function getDailySeries(type, id, posIds, startDate, endDate) {
         calendrierByDate[date] = (calendrierByDate[date] || 0) + Number(c.quantite_prevue || 0);
     });
 
-    return { achatByDate, stockByDate, calendrierByDate };
+    const saisieDetailsByDate = Object.fromEntries(Object.entries(traceByDate).map(([date, trace]) => [
+        date,
+        {
+            auteurs: [...trace.auteurs.values()],
+            lignes: trace.lignes,
+        },
+    ]));
+
+    return { achatByDate, stockByDate, calendrierByDate, saisieDetailsByDate };
 }
 
 // objectif_mensuel, achat_cumule, stock_securite = (objectif/31)*3,
@@ -327,7 +391,7 @@ async function getDailyRecords(type, id, month) {
     // (Finance/Position: même plage pour compter les corrections ouvertes du mois.)
     const fetchEnd = addDays(endDate, 1);
 
-    const { achatByDate, stockByDate, calendrierByDate } = await getDailySeries(type, id, posIds, startDate, fetchEnd);
+    const { achatByDate, stockByDate, calendrierByDate, saisieDetailsByDate } = await getDailySeries(type, id, posIds, startDate, fetchEnd);
     const correctionsByDate = posIds.length ? await countCorrectionsByDate(posIds, startDate, endDate) : {};
 
     const objectifMensuel = await getObjectifMensuel(type, id, year, mon);
@@ -349,6 +413,7 @@ async function getDailyRecords(type, id, month) {
         const nextDate = addDays(date, 1);
         const stockLendemain = stockByDate[nextDate];
         const previsionJour = calendrierByDate[date];
+        const trace = saisieDetailsByDate[date] || { auteurs: [], lignes: [] };
 
         cumul += achat;
         // Écart Calendrier d'Achat = Achat (réalisation) − Calendrier d'Achat (prévision) du jour,
@@ -373,7 +438,14 @@ async function getDailyRecords(type, id, month) {
             ecart_jour: round2(ecartJour),
             ecart_cumule: round2(ecartCumule),
             statut: ecartJour >= 0 ? 'NORMAL' : 'CRITIQUE',
-            corrections: correctionsByDate[date] || 0
+            corrections: correctionsByDate[date] || 0,
+            saisi_par: trace.auteurs[0] || null,
+            saisie_auteurs: trace.auteurs,
+            saisie_details: {
+                entityType: type,
+                entityId: String(id),
+                lignes: trace.lignes,
+            },
         };
     });
 }

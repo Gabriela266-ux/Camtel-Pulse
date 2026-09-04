@@ -1,4 +1,9 @@
 @import "tailwindcss";
+
+/* Tailwind v4 : le thème est piloté par le bouton via la classe <html class="dark">.
+   Sans cette variante, les utilitaires dark:* suivent uniquement le thème du système. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
     color-scheme: light;
     --bg-soft: #f1f7fb;
@@ -66,7 +71,13 @@ body,
 }
 
 body {
-    transition: background-color 280ms ease, color 280ms ease;
+    transition: background-color 240ms ease, color 240ms ease;
+}
+
+body * {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
 }
 
 button,
@@ -325,14 +336,85 @@ input[type='number'] {
 html.dark .bg-white { background-color: var(--surface-raised); }
 html.dark .bg-slate-50 { background-color: var(--surface-muted); }
 html.dark .bg-slate-100 { background-color: #1e293b; }
+html.dark .bg-slate-200 { background-color: #334155; }
 html.dark .border-slate-100,
-html.dark .border-slate-200 { border-color: #334155; }
+html.dark .border-slate-200,
+html.dark .border-slate-300 { border-color: #3b4a60; }
 html.dark .text-slate-900,
 html.dark .text-slate-800,
 html.dark .text-slate-700 { color: #f1f5f9; }
 html.dark .text-slate-600,
 html.dark .text-slate-500 { color: #cbd5e1; }
 html.dark .text-slate-400 { color: #94a3b8; }
+
+/* Surfaces colorées : conserver le sens sans laisser de plaques claires en mode sombre. */
+html.dark .bg-sky-50 { background-color: rgb(7 89 133 / 0.18); }
+html.dark .bg-sky-100 { background-color: rgb(7 89 133 / 0.28); }
+html.dark .bg-sky-200 { background-color: rgb(3 105 161 / 0.34); }
+html.dark .border-sky-100,
+html.dark .border-sky-200,
+html.dark .border-sky-300 { border-color: rgb(14 165 233 / 0.42); }
+html.dark .text-sky-600,
+html.dark .text-sky-700,
+html.dark .text-sky-800,
+html.dark .text-sky-900 { color: #7dd3fc; }
+
+html.dark .bg-emerald-50 { background-color: rgb(6 78 59 / 0.24); }
+html.dark .bg-emerald-100 { background-color: rgb(6 95 70 / 0.34); }
+html.dark .border-emerald-200,
+html.dark .border-emerald-300 { border-color: rgb(16 185 129 / 0.4); }
+html.dark .text-emerald-600,
+html.dark .text-emerald-700,
+html.dark .text-emerald-800,
+html.dark .text-emerald-900 { color: #6ee7b7; }
+
+html.dark .bg-amber-50 { background-color: rgb(120 53 15 / 0.22); }
+html.dark .bg-amber-100 { background-color: rgb(146 64 14 / 0.3); }
+html.dark .border-amber-200,
+html.dark .border-amber-300 { border-color: rgb(245 158 11 / 0.42); }
+html.dark .text-amber-600,
+html.dark .text-amber-700,
+html.dark .text-amber-800 { color: #fcd34d; }
+
+html.dark .bg-rose-50 { background-color: rgb(136 19 55 / 0.2); }
+html.dark .bg-rose-100 { background-color: rgb(159 18 57 / 0.3); }
+html.dark .border-rose-200,
+html.dark .border-rose-300 { border-color: rgb(244 63 94 / 0.42); }
+html.dark .text-rose-500,
+html.dark .text-rose-600,
+html.dark .text-rose-700,
+html.dark .text-rose-800,
+html.dark .text-rose-900 { color: #fda4af; }
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+    border-color: #475569;
+    background-color: #111c30;
+    color: #f8fafc;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #94a3b8; }
+html.dark option { background-color: #0f172a; color: #f8fafc; }
+html.dark table { color: #e2e8f0; }
+html.dark thead { background-color: #111c30; color: #cbd5e1; }
+html.dark tbody tr { border-color: #334155; }
+html.dark tbody tr:hover { background-color: rgb(30 41 59 / 0.75); }
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl,
+html.dark .shadow-2xl { --tw-shadow-color: rgb(0 0 0 / 0.35); }
+
+html.dark button:disabled {
+    color: #94a3b8;
+    opacity: 0.55;
+}
+
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.9);
+}
 
 @media (prefers-reduced-motion: reduce) {
     *,
