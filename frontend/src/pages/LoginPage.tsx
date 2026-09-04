@@ -92,7 +92,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
                         <label className={`mb-1 block text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Matricule
+              Matricule ou email
             </label>
             <input
               type="text"
@@ -100,7 +100,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark, onToggleTheme }) =
               onChange={(e) => setIdentifiant(e.target.value)}
               className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 ${inputClass}`}
               autoComplete="username"
-              placeholder="Ex : AGT-001"
+              placeholder="Ex : MGR-001 ou manager@camtel.local"
               required
             />
           </div>

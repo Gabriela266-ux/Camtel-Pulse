@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const compression = require('compression');
 const dotenv = require('dotenv');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { authenticate } = require('./middlewares/authMiddleware');
@@ -23,17 +24,39 @@ const operationnelRoutes = require('./routes/operationnelRoutes');
 const snapshotRoutes = require('./routes/snapshotRoutes');
 const centreRoutes = require('./routes/centreRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
+const redis = require('./config/redis');
+const { apiRateLimit } = require('./middlewares/security');
+const metrics = require('./metrics');
 
 dotenv.config();
 
 function createApp() {
   const app = express();
+  app.set('trust proxy', Number(process.env.TRUST_PROXY || 1));
+  app.use((req, res, next) => {
+    const timeoutMs = req.path.startsWith('/api/import')
+      ? Number(process.env.IMPORT_TIMEOUT_MS || 300000)
+      : Number(process.env.REQUEST_TIMEOUT_MS || 30000);
+    req.setTimeout(timeoutMs);
+    res.setTimeout(timeoutMs);
+    next();
+  });
 
   app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
   app.use(helmet());
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-  app.use(morgan('dev'));
+  app.use(compression());
+  app.use(apiRateLimit);
+  app.use(metrics.middleware);
+  app.use(morgan((tokens, req, res) => JSON.stringify({
+    level: 'info',
+    method: tokens.method(req, res),
+    path: tokens.url(req, res),
+    status: Number(tokens.status(req, res)),
+    durationMs: Number(tokens['response-time'](req, res)),
+  })));
+  app.use('/api/import', express.json({ limit: process.env.IMPORT_JSON_LIMIT || '10mb' }), importRoutes);
+  app.use(express.json({ limit: process.env.JSON_LIMIT || '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: process.env.URLENCODED_LIMIT || '1mb' }));
 
   // The API is normally consumed through the Vite frontend, but opening the
   // backend URL directly should not produce Express' default "Cannot GET /".
@@ -51,18 +74,20 @@ function createApp() {
       ok: true,
       name: 'Camtel Pulse API',
       timestamp: new Date().toISOString(),
-      status: 'running'
+      status: 'running',
+      redis: redis.status()
     });
   });
+  app.get('/api/metrics', metrics.metricsHandler);
 
   // Alias attendu par le frontend (voir api/services.ts) : hiérarchie
   // du centre de l'utilisateur connecté, reformatée pour la Sidebar.
   app.get('/api/hierarchie', authenticate, async (req, res, next) => {
     try {
-      const requestedCenterId = req.user.role === 'super_admin' && req.query.centerId
+      const requestedCenterId = ['super_admin', 'manager'].includes(req.user.role) && req.query.centerId
         ? String(req.query.centerId)
-        : req.user.centerId;
-      if (!requestedCenterId) {
+        : ['super_admin', 'manager'].includes(req.user.role) ? null : req.user.centerId;
+      if (!requestedCenterId && !['manager'].includes(req.user.role)) {
         return res.status(400).json({ ok: false, message: 'Sélectionnez un centre.' });
       }
       const data = await organizationService.getFrontendHierarchy(requestedCenterId);
@@ -83,7 +108,6 @@ function createApp() {
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/corrections', correctionRoutes);
   app.use('/api/objectifs', objectifRoutes);
-  app.use('/api/import', importRoutes);
   app.use('/api/accounts', accountRoutes);
   app.use('/api/advanced', advancedRoutes);
   app.use('/api/calendrier-achat', calendrierAchatRoutes);

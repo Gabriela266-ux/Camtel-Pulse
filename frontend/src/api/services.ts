@@ -251,7 +251,7 @@ export const apiService = {
     async login(identifiant: string, password: string): Promise<LoginResult> {
     const raw = await request<{ token: string; user: any }>(
       '/auth/login',
-            { method: 'POST', body: JSON.stringify({ matricule: identifiant, password }) },
+            { method: 'POST', body: JSON.stringify({ identifiant, password }) },
       false,
     );
 
@@ -326,6 +326,10 @@ export const apiService = {
 
   async setCentreStatus(id: string, active: boolean): Promise<CentreRecord> {
     return request<CentreRecord>(`/super-admin/centres/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ active }) });
+  },
+
+  async deleteCentre(id: string): Promise<{ id: string; deleted: boolean }> {
+    return request<{ id: string; deleted: boolean }>(`/super-admin/centres/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 
   async getSuperAdminAdmins(): Promise<AdminRecord[]> {
@@ -416,6 +420,10 @@ export const apiService = {
     return request<DashboardData>(`/dashboard?type=${type}&id=${encodeURIComponent(id)}${monthParam}`);
   },
 
+  async getCentreRevenue(): Promise<{ months: string[]; centres: Array<{ id: string; nom: string; code: string; monthly: Array<{ month: string; montant: number }>; total: number }>; criticalCases: Array<{ type: string; nom: string; centre: string; message: string }> }> {
+    return request('/dashboard/centres/revenue');
+  },
+
   async clearDailyTracking(type: EntityType, id: string, month: string): Promise<{ deleted: number }> {
     return request<{ deleted: number }>(`/saisies?entity_type=${type}&entity_id=${encodeURIComponent(id)}&month=${encodeURIComponent(month)}`, { method: 'DELETE' });
   },
@@ -463,6 +471,10 @@ export const apiService = {
   // --- Opérationnels & affectations réelles ---
   async getOperationnels(): Promise<Operationnel[]> {
     return request<Operationnel[]>('/operationnels');
+  },
+
+  async getUsers(): Promise<Array<{ id: string; nom_complet: string; email?: string; matricule?: string; statut: string; role?: { libelle?: string }; poste?: { libelle?: string }; centre?: { nom_centre?: string; code_centre?: string } }>> {
+    return request('/accounts/users');
   },
 
   async getAffectations(): Promise<OperationalAssignment[]> {

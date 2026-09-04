@@ -4,6 +4,7 @@ const db = require('../models');
 const { SaisieService } = require('../services/saisieService');
 const auditService = require('../services/auditService');
 const { assertEntityAccess } = require('../utils/entityAccess');
+const redis = require('../config/redis');
 
 const router = express.Router();
 const service = new SaisieService();
@@ -48,6 +49,14 @@ router.post('/', authorize('chef_operationnel', 'operationnel'), async (req, res
         entity_id,
         valeurs: { achat: vente, stock_journalier: stock ?? null },
       },
+    });
+    await redis.publish('events', {
+      type: stock === undefined ? 'sale_created' : 'stock_updated',
+      payload: { entityType: entity_type, entityId: entity_id, date },
+    });
+    await redis.publish('events', {
+      type: 'dashboard_updated',
+      payload: { centreId: req.user.centerId, entityType: entity_type, entityId: entity_id, date },
     });
     return res.status(persisted.created ? 201 : 200).json({ ok: true, data: { ...record, stock_journalier: stock ?? null } });
   } catch (error) {

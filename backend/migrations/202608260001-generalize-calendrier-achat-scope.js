@@ -10,11 +10,14 @@ module.exports = {
         references: { model: 'da', key: 'id' }
       });
     }
-    await queryInterface.changeColumn('calendrier_achat', 'pos_id', {
-      type: Sequelize.STRING(36),
-      allowNull: true,
-      references: { model: 'pos', key: 'id' }
-    });
+    // SQLite applies the nullable-column change in the following table rebuild.
+    if (queryInterface.sequelize.getDialect() !== 'sqlite') {
+      await queryInterface.changeColumn('calendrier_achat', 'pos_id', {
+        type: Sequelize.STRING(36),
+        allowNull: true,
+        references: { model: 'pos', key: 'id' }
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {

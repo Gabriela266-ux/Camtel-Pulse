@@ -109,6 +109,7 @@ class AuditService {
         const u = await db.Utilisateur.findByPk(userId, {
           include: [
             { model: db.Role, as: 'role' },
+            { model: db.Poste, as: 'poste', required: false },
             { model: db.Utilisateur, as: 'chefOperationnel', attributes: ['id', 'nom_complet', 'matricule'], required: false },
           ],
         });
@@ -131,7 +132,7 @@ class AuditService {
       const user = await getUser(log.utilisateur_id);
       const details = sanitizeDetails(safeParseDetails(log.details));
       const concernedCentreId = details.centre_id || details.auteur_centre_id || (user && user.centre_id) || null;
-      if (actor && actor.role !== 'super_admin' && String(concernedCentreId || '') !== String(actor.centerId || '')) {
+      if (actor && !['super_admin', 'manager'].includes(actor.role) && String(concernedCentreId || '') !== String(actor.centerId || '')) {
         continue;
       }
       const type = this.mapType(log.action, details);
@@ -147,6 +148,7 @@ class AuditService {
         auteur: (user && user.nom_complet) || 'Système',
         auteurEmail: (user && user.email) || null,
         roleAuteur: user && user.role ? this.mapRole(user.role.libelle) : 'SYSTEME',
+        posteAuteur: user && user.poste ? user.poste.libelle : null,
         chefOperationnel: user && user.chefOperationnel ? {
           id: String(user.chefOperationnel.id),
           nomComplet: user.chefOperationnel.nom_complet,

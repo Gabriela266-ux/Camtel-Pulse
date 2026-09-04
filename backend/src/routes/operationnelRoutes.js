@@ -181,7 +181,7 @@ router.get('/operationnels', async(req, res, next) => {
         }
 
         const operationnels = await findOperationnels(
-            req.user.centerId,
+            ['manager', 'super_admin'].includes(req.user.role) ? null : req.user.centerId,
             req.user.role === 'chef_operationnel' ? req.user.id : null
         );
         return res.json({ ok: true, data: operationnels.map(toOperationnelShape) });
@@ -194,7 +194,7 @@ router.get('/operationnels', async(req, res, next) => {
 router.get('/affectations', authorize('admin', 'manager', 'chef_operationnel'), async(req, res, next) => {
     try {
         const operationnels = await findOperationnels(
-            req.user.centerId,
+            ['manager', 'super_admin'].includes(req.user.role) ? null : req.user.centerId,
             req.user.role === 'chef_operationnel' ? req.user.id : null
         );
         return res.json({ ok: true, data: operationnels.map(toAssignmentShape) });

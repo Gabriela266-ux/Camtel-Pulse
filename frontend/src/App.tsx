@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AuthProvider } from './auth/AuthProvider';
 import { AppRoutes } from './routes/AppRoutes';
+import { RealtimeBridge } from './components/RealtimeBridge';
 
 export const App: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -27,6 +28,7 @@ export const App: React.FC = () => {
 
   return (
     <AuthProvider>
+      <RealtimeBridge />
       <AppRoutes isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
     </AuthProvider>
   );

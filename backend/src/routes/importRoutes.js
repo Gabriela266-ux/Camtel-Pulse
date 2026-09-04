@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const importService = require('../services/importService');
+const { body, validationResult } = require('express-validator');
 
 const router = express.Router();
 
@@ -8,8 +9,10 @@ router.use(authenticate);
 
 const MAX_CSV_SIZE = 10 * 1024 * 1024; // 10MB
 
-router.post('/csv', authorize('admin'), async (req, res, next) => {
+router.post('/csv', authorize('admin'), body('content').isString().isLength({ min: 1, max: 10 * 1024 * 1024 }), async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ ok: false, message: 'Contenu CSV invalide', errors: errors.array() });
     const { content } = req.body || {};
 
     if (!content) {

@@ -1,0 +1,65 @@
+services:
+  mysql:
+    image: mysql:8.4
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: camtel_pulse
+      MYSQL_USER: camtel
+      MYSQL_PASSWORD: change_me
+      MYSQL_ROOT_PASSWORD: change_root_me
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_DIALECT: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: camtel_pulse
+      DB_USER: camtel
+      DB_PASSWORD: change_me
+      JWT_SECRET: change_this_to_a_long_random_secret
+      JWT_REFRESH_SECRET: change_this_to_another_long_random_secret
+      REDIS_ENABLED: 'true'
+      REDIS_URL: redis://redis:6379
+      FRONTEND_URL: http://localhost:8080
+      WEB_CONCURRENCY: max
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "5000"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mysql_data:
+  redis_data:

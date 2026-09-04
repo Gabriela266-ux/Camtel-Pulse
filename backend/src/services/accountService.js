@@ -20,7 +20,7 @@ class AccountService {
             error.statusCode = 401;
             throw error;
         }
-        if (actor.role !== 'super_admin' && !actor.centerId) {
+        if (!['super_admin', 'manager'].includes(actor.role) && !actor.centerId) {
             const error = new Error('Aucun centre rattaché à ce compte');
             error.statusCode = 403;
             throw error;
@@ -140,10 +140,11 @@ class AccountService {
     async listUsers(actor) {
         this.assertActorCenter(actor);
         const users = await db.Utilisateur.findAll({
-            where: actor.role === 'super_admin' ? {} : { centre_id: actor.centerId },
+            where: ['super_admin', 'manager'].includes(actor.role) ? {} : { centre_id: actor.centerId },
             attributes: { exclude: ['mot_de_passe'] },
             include: [
                 { model: db.Role, as: 'role' },
+                { model: db.Poste, as: 'poste', include: [{ model: db.Role, as: 'role' }], required: false },
                 { model: db.Centre, as: 'centre', required: false },
                 { model: db.Utilisateur, as: 'chefOperationnel', attributes: ['id', 'nom_complet', 'matricule'], required: false },
                 { model: db.Da, as: 'da' },
@@ -158,9 +159,15 @@ class AccountService {
                 ['nom_complet', 'ASC']
             ]
         });
-        return actor.role === 'super_admin'
+        const visibleUsers = actor.role === 'super_admin'
             ? users
-            : users.filter((user) => !['admin', 'super_admin'].includes(toCanonicalRole(user.role && user.role.libelle)));
+            : users.filter((user) => !['super_admin'].includes(toCanonicalRole(user.role && user.role.libelle)));
+
+        return visibleUsers.map((user) => {
+            const result = user.toJSON();
+            if (!result.poste && result.role) result.poste = { libelle: result.role.libelle };
+            return result;
+        });
     }
 
     async getUser(userId) {

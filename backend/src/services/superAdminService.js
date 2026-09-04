@@ -6,6 +6,7 @@ const accountService = require('./accountService');
 const auditService = require('./auditService');
 const emailService = require('./emailService');
 const { toCanonicalRole } = require('../utils/roles');
+const redis = require('../config/redis');
 
 function httpError(message, statusCode) {
   const error = new Error(message);
@@ -63,11 +64,16 @@ async function serializeCentre(centre) {
 
 class SuperAdminService {
   async publicCentres() {
-    return db.Centre.findAll({
+    const cached = await redis.getCache('centres:public');
+    if (cached) return JSON.parse(cached);
+    const centres = await db.Centre.findAll({
       where: { active: true },
       attributes: ['id', 'code_centre', 'nom_centre', 'region'],
       order: [['code_centre', 'ASC']],
     });
+    const data = centres.map((centre) => centre.toJSON());
+    await redis.setCache('centres:public', data, 30);
+    return data;
   }
 
   async overview() {
@@ -143,6 +149,8 @@ class SuperAdminService {
         if (error.name !== 'SequelizeUniqueConstraintError' || attempt === 2) throw error;
       }
     }
+    await redis.deleteCache('centres:public');
+    await redis.publish('events', { type: 'dashboard_updated', payload: { event: 'created', centreId: created.id } });
     return serializeCentre(created);
   }
 
@@ -162,6 +170,8 @@ class SuperAdminService {
     if ('nom_centre' in updates && !updates.nom_centre) throw httpError('Le nom est obligatoire.', 400);
     if ('region' in updates && !updates.region) throw httpError('La région est obligatoire.', 400);
     await centre.update(updates);
+    await redis.deleteCache('centres:public');
+    await redis.publish('events', { type: 'dashboard_updated', payload: { event: 'updated', centreId: centre.id } });
     await auditService.add({
       utilisateur_id: actor.id,
       action: 'centre_modifie',
@@ -178,6 +188,8 @@ class SuperAdminService {
     if (!centre) throw httpError('Centre introuvable.', 404);
     const before = Boolean(centre.active);
     await centre.update({ active });
+    await redis.deleteCache('centres:public');
+    await redis.publish('events', { type: 'dashboard_updated', payload: { event: active ? 'activated' : 'deactivated', centreId: centre.id } });
     await auditService.add({
       utilisateur_id: actor.id,
       action: active ? 'centre_active' : 'centre_desactive',
@@ -186,6 +198,71 @@ class SuperAdminService {
       details: { centre_id: centre.id, auteur_role: actor.role, avant: { active: before }, apres: { active } },
     });
     return serializeCentre(centre);
+  }
+
+  async deleteCentre(id) {
+    const centre = await db.Centre.findByPk(id);
+    if (!centre) throw httpError('Centre introuvable.', 404);
+
+    await db.sequelize.transaction(async (transaction) => {
+      const [daRows] = await db.sequelize.query(
+        'SELECT id FROM da WHERE centre_id = :centreId',
+        { replacements: { centreId: id }, transaction }
+      );
+      const daIds = daRows.map((row) => row.id);
+      const [dsmRows] = daIds.length ? await db.sequelize.query(
+        'SELECT id FROM dsm WHERE da_id IN (:daIds)',
+        { replacements: { daIds }, transaction }
+      ) : [[]];
+      const dsmIds = dsmRows.map((row) => row.id);
+      const [posRows] = dsmIds.length ? await db.sequelize.query(
+        'SELECT id FROM pos WHERE dsm_id IN (:dsmIds)',
+        { replacements: { dsmIds }, transaction }
+      ) : [[]];
+      const posIds = posRows.map((row) => row.id);
+      const [userRows] = await db.sequelize.query(
+        'SELECT id FROM utilisateur WHERE centre_id = :centreId',
+        { replacements: { centreId: id }, transaction }
+      );
+      const userIds = userRows.map((row) => row.id);
+      const entityIds = [id, ...daIds, ...dsmIds, ...posIds];
+
+      const deleteByIds = async (table, columns, ids) => {
+        if (!ids.length) return;
+        const predicates = columns.map((column) => `${column} IN (:ids)`).join(' OR ');
+        await db.sequelize.query(`DELETE FROM ${table} WHERE ${predicates}`, {
+          replacements: { ids }, transaction,
+        });
+      };
+
+      await deleteByIds('correction', ['pos_id', 'utilisateur_id', 'valide_par'], [...posIds, ...userIds]);
+      await deleteByIds('vente_dsm_au_pos', ['dsm_id', 'pos_id', 'utilisateur_id'], [...dsmIds, ...posIds, ...userIds]);
+      await deleteByIds('stock', ['dsm_id', 'pos_id', 'utilisateur_id'], [...dsmIds, ...posIds, ...userIds]);
+      await deleteByIds('acht_journaliere', ['da_id', 'dsm_id', 'utilisateur_id'], [...daIds, ...dsmIds, ...userIds]);
+      await deleteByIds('calendrier_achat', ['dsm_id', 'pos_id', 'utilisateur_id'], [...dsmIds, ...posIds, ...userIds]);
+      await deleteByIds('prevision_journaliere', ['da_id', 'dsm_id', 'pos_id'], [...daIds, ...dsmIds, ...posIds]);
+      await deleteByIds('objectif_mensuel', ['da_id', 'dsm_id', 'pos_id'], [...daIds, ...dsmIds, ...posIds]);
+      await deleteByIds('affectation_operationnel_partenaire', ['da_id', 'utilisateur_id', 'affecte_par'], [...daIds, ...userIds]);
+      await deleteByIds('demande_acces', ['centre_id', 'utilisateur_id', 'valide_par'], [id, ...userIds]);
+      await deleteByIds('table_snapshot', ['entite_id', 'created_by'], [...entityIds, ...userIds]);
+      await deleteByIds('audit_log', ['entite_id', 'utilisateur_id'], [...entityIds, ...userIds]);
+      await db.sequelize.query('DELETE FROM audit_log WHERE details LIKE :centrePattern', {
+        replacements: { centrePattern: `%${id}%` }, transaction,
+      });
+
+      if (userIds.length) {
+        await db.sequelize.query('UPDATE utilisateur SET id_manager = NULL WHERE id_manager IN (:userIds)', { replacements: { userIds }, transaction });
+        await db.sequelize.query('DELETE FROM utilisateur WHERE id IN (:userIds)', { replacements: { userIds }, transaction });
+      }
+      if (posIds.length) await db.sequelize.query('DELETE FROM pos WHERE id IN (:posIds)', { replacements: { posIds }, transaction });
+      if (dsmIds.length) await db.sequelize.query('DELETE FROM dsm WHERE id IN (:dsmIds)', { replacements: { dsmIds }, transaction });
+      if (daIds.length) await db.sequelize.query('DELETE FROM da WHERE id IN (:daIds)', { replacements: { daIds }, transaction });
+      await db.sequelize.query('DELETE FROM centre WHERE id = :centreId', { replacements: { centreId: id }, transaction });
+    });
+
+    await redis.deleteCache('centres:public');
+    await redis.publish('events', { type: 'dashboard_updated', payload: { event: 'deleted', centreId: id } });
+    return { id, deleted: true };
   }
 
   async listAdmins() {

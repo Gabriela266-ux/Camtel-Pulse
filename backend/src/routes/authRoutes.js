@@ -4,10 +4,19 @@ const bcrypt = require('bcryptjs');
 const db = require('../models');
 const { authenticate } = require('../middlewares/authMiddleware');
 const { toCanonicalRole } = require('../utils/roles');
+const { randomUUID } = require('crypto');
+const redis = require('../config/redis');
+const { body, validationResult } = require('express-validator');
 
 const router = express.Router();
 
-router.post('/login', async(req, res) => {
+router.post('/login', [
+    body('identifiant').optional().isString().trim().isLength({ min: 2, max: 150 }),
+    body('matricule').optional().isString().trim().isLength({ min: 2, max: 50 }),
+    body('password').isString().isLength({ min: 1, max: 256 }),
+], async(req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ ok: false, message: 'Données de connexion invalides', errors: errors.array() });
     const { matricule, identifiant, password } = req.body || {};
     const loginField = matricule || identifiant;
 
@@ -16,9 +25,13 @@ router.post('/login', async(req, res) => {
     }
 
     try {
-        // La connexion est volontairement basée sur le matricule. L'adresse
-        // email reste un canal de notification, pas un identifiant de session.
-        const whereClause = { matricule: String(loginField).trim() };
+        const normalizedLogin = String(loginField).trim();
+        const whereClause = {
+            [db.Sequelize.Op.or]: [
+                { matricule: normalizedLogin },
+                { email: normalizedLogin }
+            ]
+        };
 
         const user = await db.Utilisateur.findOne({
             where: whereClause,
@@ -64,9 +77,12 @@ router.post('/login', async(req, res) => {
             return res.status(403).json({ ok: false, message: 'Votre centre est temporairement désactivé' });
         }
 
-        const token = jwt.sign({ sub: user.id, email: user.email, role, da_id: user.da_id },
+        const sessionId = randomUUID();
+        const token = jwt.sign({ sub: user.id, email: user.email, role, da_id: user.da_id, centerId: user.centre_id || null, jti: sessionId },
             process.env.JWT_SECRET || 'camtel-secret', { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
         );
+        await redis.createSession(sessionId, { userId: user.id, role }, 8 * 60 * 60);
+        await redis.publish('auth', { event: 'login', userId: user.id, role });
 
         const activeAssignments = user.affectationsPartenaires || [];
         const partenaires = activeAssignments

@@ -17,10 +17,6 @@ router.get('/centres', async (req, res, next) => {
   try { return res.json({ ok: true, data: await superAdminService.listCentres() }); } catch (error) { return next(error); }
 });
 
-router.get('/centres/:id', async (req, res, next) => {
-  try { return res.json({ ok: true, data: await superAdminService.getCentre(req.params.id) }); } catch (error) { return next(error); }
-});
-
 router.post('/centres', async (req, res, next) => {
   try { return res.status(201).json({ ok: true, data: await superAdminService.createCentre(req.body || {}, req.user) }); } catch (error) { return next(error); }
 });
@@ -31,6 +27,10 @@ router.patch('/centres/:id', async (req, res, next) => {
 
 router.patch('/centres/:id/status', async (req, res, next) => {
   try { return res.json({ ok: true, data: await superAdminService.setCentreStatus(req.params.id, req.body && req.body.active, req.user) }); } catch (error) { return next(error); }
+});
+
+router.delete('/centres/:id', async (req, res, next) => {
+  try { return res.json({ ok: true, data: await superAdminService.deleteCentre(req.params.id) }); } catch (error) { return next(error); }
 });
 
 router.get('/admins', async (req, res, next) => {
@@ -55,6 +55,10 @@ router.get('/demandes', async (req, res, next) => {
 
 router.get('/audit', async (req, res, next) => {
   try { return res.json({ ok: true, data: await auditService.listForModifications(req.user) }); } catch (error) { return next(error); }
+});
+
+router.get('/centres/:id', async (req, res, next) => {
+  try { return res.json({ ok: true, data: await superAdminService.getCentre(req.params.id) }); } catch (error) { return next(error); }
 });
 
 module.exports = router;

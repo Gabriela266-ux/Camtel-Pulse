@@ -7,21 +7,6 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.get('/calendar/:entityType/:entityId', (req, res) => {
-  const { entityType, entityId } = req.params;
-  const { objectiveMensuel, year, month } = req.query;
-
-  const data = generateMonthCalendar({
-    entityType,
-    entityId,
-    objectiveMensuel: Number(objectiveMensuel || 0),
-    year: Number(year || new Date().getFullYear()),
-    month: Number(month || new Date().getMonth() + 1)
-  });
-
-  res.json({ ok: true, data });
-});
-
 router.get('/summary', (req, res) => {
   res.json({ ok: true, data: computePerformanceSummary() });
 });
@@ -38,6 +23,19 @@ router.get('/carry-over', (req, res) => {
       carriedForward: applyCarryOver({ previousBalance, currentStock })
     }
   });
+});
+
+router.get('/calendar/:entityType/:entityId', (req, res) => {
+  const { entityType, entityId } = req.params;
+  const { objectiveMensuel, year, month } = req.query;
+  const data = generateMonthCalendar({
+    entityType,
+    entityId,
+    objectiveMensuel: Number(objectiveMensuel || 0),
+    year: Number(year || new Date().getFullYear()),
+    month: Number(month || new Date().getMonth() + 1)
+  });
+  res.json({ ok: true, data });
 });
 
 router.post('/admin-only', authorize('admin'), (req, res) => {

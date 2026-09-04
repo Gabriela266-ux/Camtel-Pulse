@@ -8,6 +8,7 @@ interface RoleWorkspaceProps {
   user?: User | null;
   operationnels?: Operationnel[];
   assignments?: OperationalAssignment[];
+  userAccounts?: Array<{ id: string; nom_complet: string; email?: string; matricule?: string; statut: string; role?: { libelle?: string }; poste?: { libelle?: string }; centre?: { nom_centre?: string; code_centre?: string } }>;
   partners?: DANode[];
   records?: DailyRecord[];
   onReassign?: (assignment: OperationalAssignment) => void;
@@ -24,6 +25,7 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
   user,
   operationnels = [],
   assignments = [],
+  userAccounts = [],
   partners = [],
   records = [],
   onReassign,
@@ -72,6 +74,18 @@ export const RoleWorkspace: React.FC<RoleWorkspaceProps> = ({
               <tbody>{assignments.map((assignment) => <tr key={assignment.userId} className="border-t border-slate-100 dark:border-slate-700"><td className="px-3 py-3"><p className="font-black text-slate-800 dark:text-slate-100">{assignment.nomComplet?.trim() || assignment.email || 'Identité indisponible'}</p><p className="mt-0.5 text-[11px] text-slate-500">{assignment.email}</p></td><td className="px-3 py-3"><p className="font-bold text-sky-700 dark:text-sky-300">Opérationnel</p><p className="mt-0.5 text-[11px] text-slate-500">Chef / {assignment.chefOperationnel?.nomComplet || 'Non rattaché'}</p></td><td className="px-3 py-3 text-slate-600 dark:text-slate-300">{assignment.partenaires?.map((partner) => partner.nom).join(', ') || 'Aucun périmètre'}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 font-bold ${assignment.statut === 'suspendu' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{assignment.statut === 'suspendu' ? 'Suspendu' : 'Actif'}</span></td></tr>)}</tbody>
             </table>
             {assignments.length === 0 && <p className="px-4 py-8 text-center text-sm text-slate-500">Aucun opérationnel n’est encore rattaché aux équipes de ce centre.</p>}
+          </div>
+        )}
+        {!isAdmin && (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="border-b border-slate-100 px-3 py-3 text-xs font-black uppercase tracking-wide text-sky-700 dark:border-slate-700 dark:text-sky-300">
+              Tous les utilisateurs et sous-utilisateurs
+            </div>
+            <table className="w-full min-w-[860px] text-left text-xs">
+              <thead><tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:bg-slate-800"><th className="px-3 py-2.5">Nom complet</th><th className="px-3 py-2.5">Matricule / email</th><th className="px-3 py-2.5">Poste</th><th className="px-3 py-2.5">Centre de travail</th><th className="px-3 py-2.5">Statut</th></tr></thead>
+              <tbody>{userAccounts.map((account) => <tr key={account.id} className="border-t border-slate-100 dark:border-slate-700"><td className="px-3 py-3 font-black text-slate-800 dark:text-slate-100">{account.nom_complet || 'Identité indisponible'}</td><td className="px-3 py-3"><p className="font-mono text-slate-700 dark:text-slate-300">{account.matricule || '—'}</p><p className="text-[11px] text-slate-500">{account.email || '—'}</p></td><td className="px-3 py-3 text-slate-600 dark:text-slate-300">{account.poste?.libelle || account.role?.libelle || '—'}</td><td className="px-3 py-3 text-slate-600 dark:text-slate-300">{account.centre?.nom_centre || account.centre?.code_centre || '—'}</td><td className="px-3 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{account.statut}</span></td></tr>)}</tbody>
+            </table>
+            {userAccounts.length === 0 && <p className="px-4 py-8 text-center text-sm text-slate-500">Aucun compte à afficher.</p>}
           </div>
         )}
       </Card>

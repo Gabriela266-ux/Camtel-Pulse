@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const db = require('../models');
 const { toCanonicalRole } = require('../utils/roles');
+const redis = require('../config/redis');
+const { userRateLimit } = require('./security');
 
 async function authenticate(req, res, next) {
     const authorization = req.headers.authorization || '';
@@ -12,6 +14,10 @@ async function authenticate(req, res, next) {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'camtel-secret');
+
+        if (redis.status().enabled && !(await redis.isSessionActive(decoded.jti))) {
+            return res.status(401).json({ ok: false, message: 'Session expirée ou révoquée' });
+        }
 
         const user = await db.Utilisateur.findOne({
             where: { id: decoded.sub },
@@ -70,11 +76,13 @@ async function authenticate(req, res, next) {
             must_change_password: Boolean(user.must_change_password)
         };
 
-        if (user.must_change_password && !String(req.originalUrl || '').includes('/auth/change-temporary-password')) {
-            return res.status(403).json({ ok: false, code: 'PASSWORD_CHANGE_REQUIRED', message: 'Vous devez modifier votre mot de passe temporaire.' });
-        }
+                return userRateLimit(req, res, () => {
+                    if (user.must_change_password && !String(req.originalUrl || '').includes('/auth/change-temporary-password')) {
+                        return res.status(403).json({ ok: false, code: 'PASSWORD_CHANGE_REQUIRED', message: 'Vous devez modifier votre mot de passe temporaire.' });
+                    }
+                    return next();
+                });
 
-        return next();
     } catch {
         return res.status(401).json({ ok: false, message: 'Token invalide ou expiré' });
     }

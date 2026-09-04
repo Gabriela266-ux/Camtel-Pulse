@@ -39,7 +39,7 @@ async function assertEntityAccess(user, entityType, entityId) {
     error.statusCode = 401;
     throw error;
   }
-  if (user.role === 'super_admin') return;
+  if (['super_admin', 'manager'].includes(user.role)) return;
   const centerId = await resolveCenterId(entityType, entityId);
   if (!centerId) {
     const error = new Error('Entité introuvable');

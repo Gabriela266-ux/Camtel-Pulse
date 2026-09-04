@@ -31,6 +31,8 @@ interface RawModification {
   auteur: string;
   auteurEmail?: string | null;
   roleAuteur: string;
+  posteAuteur?: string | null;
+  centre?: { nom_centre?: string; code_centre?: string } | null;
   chefOperationnel?: { id: string; nomComplet: string; matricule: string } | null;
   type: string;
   partenaireId?: string | null;
@@ -251,7 +253,9 @@ export const ModificationsPage: React.FC<ModificationsPageProps> = ({ isDark, on
 
                     <td className="px-4 py-3">
                       <p className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{modification.auteur}</p>
-                      <p className={`mt-0.5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{modification.roleAuteur} / Chef : {modification.chefOperationnel?.nomComplet || 'Non applicable'}</p>
+                      <p className={`mt-0.5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{modification.posteAuteur || modification.roleAuteur} · {modification.auteurEmail || 'Email non renseigné'}</p>
+                      <p className={`mt-0.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Centre de travail : {modification.centre?.nom_centre || modification.centre?.code_centre || 'Non renseigné'}</p>
+                      <p className={`mt-0.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Chef : {modification.chefOperationnel?.nomComplet || 'Non applicable'}</p>
                     </td>
 
                     <td className="px-4 py-3">

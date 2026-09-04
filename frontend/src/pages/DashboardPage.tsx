@@ -31,6 +31,7 @@ import type { NetworkEntityContext } from '../components/dashboard/NetworkEntity
 import { AlertDetailsModal } from '../components/dashboard/AlertDetailsModal';
 import { SnapshotsPanel } from '../components/dashboard/SnapshotsPanel';
 import { findFirstHierarchyMatch } from '../utils/hierarchySearch';
+import { CenterRevenuePanel } from '../components/dashboard/CenterRevenuePanel';
 
 interface DashboardPageProps {
   isDark: boolean;
@@ -97,6 +98,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [assignments, setAssignments] = useState<OperationalAssignment[]>([]);
   const [operationnels, setOperationnels] = useState<Operationnel[]>([]);
+  const [userAccounts, setUserAccounts] = useState<Array<{ id: string; nom_complet: string; email?: string; matricule?: string; statut: string; role?: { libelle?: string }; poste?: { libelle?: string }; centre?: { nom_centre?: string; code_centre?: string } }>>([]);
+  const [centreRevenue, setCentreRevenue] = useState<{ months: string[]; centres: Array<{ id: string; nom: string; code: string; monthly: Array<{ month: string; montant: number }>; total: number }>; criticalCases: Array<{ type: string; nom: string; centre: string; message: string }> } | null>(null);
   const [assignmentToEdit, setAssignmentToEdit] = useState<OperationalAssignment | null>(null);
   const [addPartnerModalOpen, setAddPartnerModalOpen] = useState(false);
   const [networkEntityContext, setNetworkEntityContext] = useState<NetworkEntityContext | null>(null);
@@ -185,7 +188,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
       .getAffectations()
       .then((data) => setAssignments(data))
       .catch((err) => console.error('Impossible de charger les affectations :', err));
-  }, [assignedPartnerIds, isOperational, loadSelectedEntity]);
+
+    if (role === 'MANAGER') {
+      apiService
+        .getUsers()
+        .then((data) => setUserAccounts(data))
+        .catch((err) => console.error('Impossible de charger les comptes :', err));
+      apiService
+        .getCentreRevenue()
+        .then((data) => setCentreRevenue(data))
+        .catch((err) => console.error('Impossible de charger le chiffre d’affaires :', err));
+    }
+  }, [assignedPartnerIds, isOperational, loadSelectedEntity, role]);
 
   const handleSelectEntity = (entity: EntitySelection) => {
     void loadSelectedEntity(entity, referenceDate.slice(0, 7));
@@ -773,11 +787,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ isDark, onToggleTh
             user={user}
             operationnels={operationnels}
             assignments={assignments}
+            userAccounts={userAccounts}
             partners={hierarchyData.da}
             records={records}
             onReassign={(assignment) => setAssignmentToEdit(assignment)}
             onToggleStatus={handleToggleStatus}
           />
+
+          {role === 'MANAGER' && <CenterRevenuePanel data={centreRevenue} isDark={isDark} />}
 
           {loadingEntity && (
             <div role="status" className="panel-soft px-4 py-3 text-sm font-semibold text-slate-500">

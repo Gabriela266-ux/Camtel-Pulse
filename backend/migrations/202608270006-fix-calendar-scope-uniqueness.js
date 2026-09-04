@@ -51,7 +51,11 @@ module.exports = {
             quantite_prevue, date_saisir, created_at, updated_at
           )
           SELECT
-            id, da_id, dsm_id, pos_id, utilisateur_id, date_prevue,
+            id,
+            NULL AS da_id,
+            CASE WHEN pos_id IS NULL THEN dsm_id ELSE NULL END AS dsm_id,
+            pos_id,
+            utilisateur_id, date_prevue,
             quantite_prevue, date_saisir, created_at, updated_at
           FROM calendrier_achat
         `, { transaction });

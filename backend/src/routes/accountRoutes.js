@@ -95,9 +95,7 @@ router.patch('/:id/reject', authorize('admin', 'super_admin'), async(req, res, n
     }
 });
 
-router.use(authorize('admin', 'super_admin'));
-
-router.get('/users', async(req, res, next) => {
+router.get('/users', authorize('admin', 'super_admin', 'manager'), async(req, res, next) => {
     try {
         const data = await accountService.listUsers(req.user);
         res.json({ ok: true, data });
@@ -105,6 +103,8 @@ router.get('/users', async(req, res, next) => {
         next(error);
     }
 });
+
+router.use(authorize('admin', 'super_admin'));
 
 router.post('/users', async(req, res, next) => {
     try {

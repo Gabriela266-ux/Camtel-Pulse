@@ -14,6 +14,7 @@ import {
   Search,
   ShieldCheck,
   SunMedium,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
@@ -147,7 +148,7 @@ export const SuperAdminPage: React.FC<SuperAdminPageProps> = ({ isDark, onToggle
       <main className="p-4 sm:p-6 lg:p-8">
         {loading && section !== 'requests' && section !== 'audit' ? <LoadingBlock label="Chargement des données réelles…" /> : <>
           {section === 'overview' && <OverviewPanel overview={overview} centres={centres} onNavigate={setSection} />}
-          {section === 'centres' && <CentresPanel centres={centres} onCreate={() => setCentreModal('create')} onView={setDetailCentre} onEdit={setCentreModal} onStatus={async (centre) => { try { await apiService.setCentreStatus(centre.id, !centre.active); setToast({ tone: 'success', message: `Centre ${centre.active ? 'désactivé' : 'réactivé'} avec succès.` }); await refresh(); } catch (error) { setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Action impossible.' }); } }} />}
+          {section === 'centres' && <CentresPanel centres={centres} onCreate={() => setCentreModal('create')} onView={setDetailCentre} onEdit={setCentreModal} onStatus={async (centre) => { try { await apiService.setCentreStatus(centre.id, !centre.active); setToast({ tone: 'success', message: `Centre ${centre.active ? 'désactivé' : 'réactivé'} avec succès.` }); await refresh(); } catch (error) { setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Action impossible.' }); } }} onDelete={async (centre) => { if (!window.confirm(`Supprimer définitivement ${centre.code_centre} et toutes ses données, archives et utilisateurs ? Cette action est irréversible.`)) return; try { await apiService.deleteCentre(centre.id); setToast({ tone: 'success', message: `${centre.code_centre} a été supprimé définitivement.` }); await refresh(); } catch (error) { setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Suppression impossible.' }); } }} />}
           {section === 'admins' && <AdminsPanel admins={admins} onCreate={() => setAdminModalOpen(true)} onView={setDetailAdmin} onStatus={async (admin) => { try { await apiService.setAdminStatus(admin.id, admin.statut === 'actif' ? 'suspendu' : 'actif'); setToast({ tone: 'success', message: 'Statut de l’administrateur mis à jour.' }); await refresh(); } catch (error) { setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Action impossible.' }); } }} onReset={async (admin) => { try { const result = await apiService.resetCentreAdminPassword(admin.id); if (result.temporaryPassword) setCredentials({ name: admin.nom_complet, email: admin.email, matricule: admin.matricule, password: result.temporaryPassword }); setToast({ tone: 'success', message: 'Mot de passe temporaire généré.' }); } catch (error) { setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Réinitialisation impossible.' }); } }} />}
           {section === 'requests' && <AccessRequestsPanel />}
           {section === 'audit' && <AuditLogsPanel />}
@@ -159,7 +160,7 @@ export const SuperAdminPage: React.FC<SuperAdminPageProps> = ({ isDark, onToggle
     {centreModal && <CentreFormModal centre={centreModal === 'create' ? null : centreModal} onClose={() => setCentreModal(null)} onSaved={async (message) => { setCentreModal(null); setToast({ tone: 'success', message }); await refresh(); }} />}
     {adminModalOpen && <AdminFormModal centres={centres.filter((centre) => centre.active)} onClose={() => setAdminModalOpen(false)} onCreated={async (admin, password) => { setAdminModalOpen(false); setToast({ tone: 'success', message: 'Administrateur créé et rattaché au centre.' }); setCredentials({ name: admin.nom_complet, email: admin.email, matricule: admin.matricule, password }); await refresh(); }} />}
     {credentials && <TemporaryPasswordModal credentials={credentials} onClose={() => setCredentials(null)} />}
-    {detailCentre && <EntityDetailModal kind="centre" entity={detailCentre} onClose={() => setDetailCentre(null)} />}
+    {detailCentre && <EntityDetailModal kind="centre" entity={detailCentre} onClose={() => setDetailCentre(null)} onDelete={async () => { if (!window.confirm(`Supprimer définitivement ${detailCentre.code_centre} et toutes ses données, archives et utilisateurs ? Cette action est irréversible.`)) return; try { await apiService.deleteCentre(detailCentre.id); setDetailCentre(null); setToast({ tone: 'success', message: `${detailCentre.code_centre} a été supprimé définitivement.` }); await refresh(); } catch (error) { setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Suppression impossible.' }); } }} />}
     {detailAdmin && <EntityDetailModal kind="admin" entity={detailAdmin} onClose={() => setDetailAdmin(null)} />}
   </div>;
 };
@@ -177,8 +178,9 @@ function OverviewPanel({ overview, centres, onNavigate }: { overview: SuperAdmin
   </div>;
 }
 
-function CentresPanel({ centres, onCreate, onView, onEdit, onStatus }: { centres: CentreRecord[]; onCreate: () => void; onView: (centre: CentreRecord) => void; onEdit: (centre: CentreRecord) => void; onStatus: (centre: CentreRecord) => void }) {
+function CentresPanel({ centres, onCreate, onView, onEdit, onStatus, onDelete }: { centres: CentreRecord[]; onCreate: () => void; onView: (centre: CentreRecord) => void; onEdit: (centre: CentreRecord) => void; onStatus: (centre: CentreRecord) => void; onDelete: (centre: CentreRecord) => void }) {
   const [query, setQuery] = useState('');
+  void onDelete;
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
   const filtered = centres.filter((centre) => [centre.code_centre, centre.nom_centre, centre.region, centre.telephone].some((value) => String(value || '').toLowerCase().includes(deferredQuery)));
   return <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-black">Gestion des centres</h3><p className="mt-1 text-sm text-slate-500">Création, coordonnées et activation logique.</p></div><button type="button" onClick={onCreate} className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"><Plus className="h-4 w-4" />Créer un centre</button></div><label className="relative mt-5 block max-w-xl"><span className="sr-only">Rechercher un centre</span><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Code, nom, région ou téléphone…" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-sky-900" /></label>
@@ -214,10 +216,11 @@ function AdminFormModal({ centres, onClose, onCreated }: { centres: CentreRecord
   return <AccessibleModal title="Créer un administrateur" description="Le rôle Admin est imposé par le serveur. Le mot de passe temporaire ne sera affiché qu’une fois." onClose={onClose}><form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2"><label className="text-xs font-bold text-slate-500">Nom complet<input autoFocus required value={form.nom_complet} onChange={(event) => update('nom_complet', event.target.value)} className={field} /></label><label className="text-xs font-bold text-slate-500">Matricule<input required value={form.matricule} onChange={(event) => update('matricule', event.target.value)} className={field} /></label><label className="text-xs font-bold text-slate-500">Email<input required type="email" value={form.email} onChange={(event) => update('email', event.target.value)} className={field} /></label><label className="text-xs font-bold text-slate-500">Téléphone<input required type="tel" value={form.telephone} onChange={(event) => update('telephone', event.target.value)} className={field} /></label><label className="text-xs font-bold text-slate-500 sm:col-span-2">Centre<select required value={form.centre_id} onChange={(event) => update('centre_id', event.target.value)} className={field}><option value="" disabled>Sélectionnez un centre actif…</option>{centres.map((centre) => <option key={centre.id} value={centre.id}>{centre.code_centre} — {centre.nom_centre} — {centre.region}</option>)}</select></label>{error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300 sm:col-span-2">{error}</p>}<div className="flex justify-end gap-2 sm:col-span-2"><button type="button" onClick={onClose} className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold dark:border-slate-700">Annuler</button><button disabled={saving || centres.length === 0} className="cursor-pointer rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Création…' : 'Créer l’Admin'}</button></div></form></AccessibleModal>;
 }
 
-function EntityDetailModal({ kind, entity, onClose }: {
+function EntityDetailModal({ kind, entity, onClose, onDelete }: {
   kind: 'centre' | 'admin';
   entity: CentreRecord | AdminRecord;
   onClose: () => void;
+  onDelete?: () => void;
 }) {
   const [history, setHistory] = useState<Array<{ id: string; date: string; type: string; auteur: string; detail?: string }>>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -254,6 +257,7 @@ function EntityDetailModal({ kind, entity, onClose }: {
         <div><dt className="text-xs font-bold text-slate-500">Statut</dt><dd className="mt-1"><StatusPill active={admin?.statut === 'actif'} label={admin?.statut} /></dd></div>
       </>}
     </dl>
+    {isCentre && onDelete && <button type="button" onClick={onDelete} className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-black text-white hover:bg-rose-700" title="Supprimer définitivement"><Trash2 className="h-4 w-4" />Supprimer définitivement</button>}
     <div className="mt-5"><h3 className="text-sm font-black">Historique récent</h3>{loadingHistory ? <p className="mt-3 text-sm text-slate-500">Chargement de l’historique…</p> : history.length === 0 ? <p className="mt-3 text-sm text-slate-500">Aucune modification enregistrée pour cette entité.</p> : <ol className="mt-3 space-y-2">{history.map((item) => <li key={item.id} className="rounded-lg border border-slate-200 p-3 text-xs dark:border-slate-700"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-black text-sky-700 dark:text-sky-300">{item.type}</span><time className="text-slate-400">{new Date(item.date).toLocaleString('fr-FR')}</time></div><p className="mt-1 text-slate-600 dark:text-slate-300">{item.detail || 'Modification enregistrée'} · {item.auteur}</p></li>)}</ol>}</div>
   </AccessibleModal>;
 }
